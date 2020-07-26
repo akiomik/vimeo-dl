@@ -10,32 +10,32 @@ import (
 )
 
 var (
-  input string
-  output string
-  userAgent string
-  scale string
+	input     string
+	output    string
+	userAgent string
+	scale     string
 )
 
 var rootCmd = &cobra.Command{
 	Use:   "vimeo-dl",
 	Short: "vimeo downloader",
 	Run: func(cmd *cobra.Command, args []string) {
-    client := vimeo.NewClient()
-    if len(userAgent) > 0 {
-      client.UserAgent = userAgent
-    }
+		client := vimeo.NewClient()
+		if len(userAgent) > 0 {
+			client.UserAgent = userAgent
+		}
 
-    masterJsonUrl, err := url.Parse(input)
-    if err != nil {
+		masterJsonUrl, err := url.Parse(input)
+		if err != nil {
 			fmt.Println(err.Error())
 			os.Exit(1)
-    }
+		}
 
-    masterJson, err := client.GetMasterJson(masterJsonUrl)
-    if err != nil {
+		masterJson, err := client.GetMasterJson(masterJsonUrl)
+		if err != nil {
 			fmt.Println(err.Error())
 			os.Exit(1)
-    }
+		}
 
 		if len(output) == 0 {
 			output = masterJson.ClipId + ".mp4"
@@ -45,18 +45,18 @@ var rootCmd = &cobra.Command{
 			fmt.Println(err)
 			os.Exit(1)
 		}
-    defer f.Close()
+		defer f.Close()
 		fmt.Println("Downloading to " + output)
 
-    if len(scale) == 0 {
-      scale = masterJson.Video[len(masterJson.Video) - 1].Id
-    }
+		if len(scale) == 0 {
+			scale = masterJson.Video[len(masterJson.Video)-1].Id
+		}
 
-    err = masterJson.CreateVideoFile(f, masterJsonUrl, scale, client)
-    if err != nil {
+		err = masterJson.CreateVideoFile(f, masterJsonUrl, scale, client)
+		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
-    }
+		}
 	},
 }
 
