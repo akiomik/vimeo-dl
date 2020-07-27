@@ -27,7 +27,6 @@ jobs:
         # go get -v -t -d ./...
         mkdir -p /home/runner/go/src/github.com/akiomik/vimeo-dl/
         cp -R . /home/runner/go/src/github.com/akiomik/vimeo-dl/
-        go get -u github.com/spf13/cobra/cobra
         if [ -f Gopkg.toml ]; then
             curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
             dep ensure
