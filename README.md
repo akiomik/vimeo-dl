@@ -16,6 +16,7 @@ Flags:
   -h, --help                help for vimeo-dl
   -i, --input string        url for master.json (required)
       --user-agent string   user-agent for request
+  -v, --version             version for vimeo-dl
       --video-id string     video id
 ```
 

@@ -6,6 +6,8 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+
+	"github.com/akiomik/vimeo-dl/config"
 )
 
 type Client struct {
@@ -16,7 +18,7 @@ type Client struct {
 func NewClient() *Client {
 	client := Client{}
 	client.Client = http.DefaultClient
-	client.UserAgent = "vimeo-dl/0.0.1"
+	client.UserAgent = "vimeo-dl/" + config.Version
 
 	return &client
 }

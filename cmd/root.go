@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"os"
 
+	"github.com/akiomik/vimeo-dl/config"
 	"github.com/akiomik/vimeo-dl/vimeo"
 	"github.com/spf13/cobra"
 )
@@ -17,8 +18,9 @@ var (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "vimeo-dl",
-	Short: "vimeo downloader",
+	Use:     "vimeo-dl",
+	Short:   "vimeo-dl " + config.Version,
+	Version: config.Version,
 	Run: func(cmd *cobra.Command, args []string) {
 		client := vimeo.NewClient()
 		if len(userAgent) > 0 {
