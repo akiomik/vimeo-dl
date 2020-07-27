@@ -86,7 +86,7 @@ func (mj *MasterJson) FindAudio(id string) (*Audio, error) {
 }
 
 func (mj *MasterJson) FindMaximumBitrateVideo() *Video {
-  var video Video
+	var video Video
 	for _, v := range mj.Video {
 		if v.Bitrate > video.Bitrate {
 			video = v
@@ -97,7 +97,7 @@ func (mj *MasterJson) FindMaximumBitrateVideo() *Video {
 }
 
 func (mj *MasterJson) FindMaximumBitrateAudio() *Audio {
-  var audio Audio
+	var audio Audio
 	for _, a := range mj.Audio {
 		if a.Bitrate > audio.Bitrate {
 			audio = a
