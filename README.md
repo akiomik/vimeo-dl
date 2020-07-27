@@ -52,11 +52,11 @@ go get -u github.com/akiomik/vimeo-dl
 ## Build
 
 ```sh
-go build
+go build -v .
 ```
 
-## Testing
+## Test
 
 ```sh
-go test github.com/akiomik/vimeo-dl/vimeo
+go test -v ./...
 ```
