@@ -10,10 +10,11 @@ Usage:
   vimeo-dl [flags]
 
 Flags:
+      --audio-id string     audio id
   -h, --help                help for vimeo-dl
   -i, --input string        url for master.json (required)
-  -s, --scale string        scale
       --user-agent string   user-agent for request
+      --video-id string     video id
 ```
 
 ## Example
