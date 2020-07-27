@@ -63,7 +63,7 @@ var rootCmd = &cobra.Command{
 func init() {
 	rootCmd.Flags().StringVarP(&input, "input", "i", "", "url for master.json (required)")
 	rootCmd.Flags().StringVarP(&output, "output", "o", "", "output file name")
-	rootCmd.Flags().StringVarP(&output, "user-agent", "", "", "user-agent for request")
+	rootCmd.Flags().StringVarP(&userAgent, "user-agent", "", "", "user-agent for request")
 	rootCmd.Flags().StringVarP(&scale, "scale", "s", "", "scale")
 	rootCmd.MarkFlagRequired("input")
 }
