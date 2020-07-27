@@ -11,7 +11,6 @@ import (
 
 var (
 	input     string
-	output    string
 	userAgent string
 	scale     string
 )
@@ -37,9 +36,7 @@ var rootCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		if len(output) == 0 {
-			output = masterJson.ClipId + ".mp4"
-		}
+		output := masterJson.ClipId + ".mp4"
 		f, err := os.OpenFile(output, os.O_CREATE|os.O_WRONLY|os.O_EXCL, 0644)
 		if err != nil {
 			fmt.Println(err)
@@ -62,7 +59,6 @@ var rootCmd = &cobra.Command{
 
 func init() {
 	rootCmd.Flags().StringVarP(&input, "input", "i", "", "url for master.json (required)")
-	rootCmd.Flags().StringVarP(&output, "output", "o", "", "output file name")
 	rootCmd.Flags().StringVarP(&userAgent, "user-agent", "", "", "user-agent for request")
 	rootCmd.Flags().StringVarP(&scale, "scale", "s", "", "scale")
 	rootCmd.MarkFlagRequired("input")
