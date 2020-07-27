@@ -11,26 +11,51 @@ import (
 func TestGetMasterJson(t *testing.T) {
 	body := `{
     "clip_id": "foo",
-    "base_url": "./bar",
+    "base_url": "../",
     "video": [{
-      "id": "1080p",
+      "id": "bar",
+      "base_url": "bar/chop/",
+      "bitrate": 574000,
       "init_segment": "baz",
       "segments": [{
-        "url": "./qux"
+        "url": "segment-1.m4s"
       }]
     }],
-    "audio": null
+    "audio": [{
+      "id": "bar",
+      "base_url": "../audio/bar/chop/",
+      "bitrate": 255000,
+      "init_segment": "baz",
+      "segments": [{
+        "url": "segment-1.m4s"
+      }]
+    }]
   }`
 	expected := &MasterJson{
 		ClipId:  "foo",
-		BaseUrl: "./bar",
+		BaseUrl: "../",
 		Video: []Video{
 			Video{
-				Id:          "1080p",
+				Id:          "bar",
+				BaseUrl:     "bar/chop/",
+				Bitrate:     574000,
 				InitSegment: "baz",
 				Segments: []Segment{
 					Segment{
-						Url: "./qux",
+						Url: "segment-1.m4s",
+					},
+				},
+			},
+		},
+		Audio: []Audio{
+			Audio{
+				Id:          "bar",
+				BaseUrl:     "../audio/bar/chop/",
+				Bitrate:     255000,
+				InitSegment: "baz",
+				Segments: []Segment{
+					Segment{
+						Url: "segment-1.m4s",
 					},
 				},
 			},
