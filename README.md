@@ -41,7 +41,7 @@ vimeo-dl -i "https://8vod-adaptive.akamaized.net/xxx/yyy/sep/video/9f88d1ff,b83d
          --audio-id "b83d0f9d"
 
 # Combine both files
-ffmpeg -i ${clip_id}-video.mp -i ${clip_id}-audio.mp4 -c copy ${clip_id}.mp4
+ffmpeg -i ${clip_id}-video.mp4 -i ${clip_id}-audio.mp4 -c copy ${clip_id}.mp4
 ```
 
 ## Install
