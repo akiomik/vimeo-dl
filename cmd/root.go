@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"os/exec"
 
 	"github.com/akiomik/vimeo-dl/config"
 	"github.com/akiomik/vimeo-dl/vimeo"
@@ -15,6 +16,7 @@ var (
 	userAgent string
 	videoId   string
 	audioId   string
+	combine   bool
 )
 
 var rootCmd = &cobra.Command{
@@ -39,17 +41,28 @@ var rootCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		err = createVideo(client, masterJson, masterJsonUrl)
+		videoOutputFilename := masterJson.ClipId + "-video.mp4"
+		err = createVideo(client, masterJson, masterJsonUrl, videoOutputFilename)
 		if err != nil {
 			fmt.Println(err.Error())
 			os.Exit(1)
 		}
 
 		if len(masterJson.Audio) > 0 {
-			err = createAudio(client, masterJson, masterJsonUrl)
+			audioOutputFilename := masterJson.ClipId + "-audio.mp4"
+			err = createAudio(client, masterJson, masterJsonUrl, audioOutputFilename)
 			if err != nil {
 				fmt.Println(err.Error())
 				os.Exit(1)
+			}
+
+			if combine {
+				outputFilename := masterJson.ClipId + ".mp4"
+				err = combineVideoAndAudio(videoOutputFilename, audioOutputFilename, outputFilename)
+				if err != nil {
+					fmt.Println(err.Error())
+					os.Exit(1)
+				}
 			}
 		}
 
@@ -62,6 +75,7 @@ func init() {
 	rootCmd.Flags().StringVarP(&userAgent, "user-agent", "", "", "user-agent for request")
 	rootCmd.Flags().StringVarP(&videoId, "video-id", "", "", "video id")
 	rootCmd.Flags().StringVarP(&audioId, "audio-id", "", "", "audio id")
+	rootCmd.Flags().BoolVarP(&combine, "combine", "", false, "combine video and audio into a single mp4 (ffmpeg is required)")
 	rootCmd.MarkFlagRequired("input")
 }
 
@@ -72,14 +86,13 @@ func Execute() {
 	}
 }
 
-func createVideo(client *vimeo.Client, masterJson *vimeo.MasterJson, masterJsonUrl *url.URL) error {
-	videoOutput := masterJson.ClipId + "-video.mp4"
-	videoFile, err := os.OpenFile(videoOutput, os.O_CREATE|os.O_WRONLY|os.O_EXCL, 0644)
+func createVideo(client *vimeo.Client, masterJson *vimeo.MasterJson, masterJsonUrl *url.URL, outputFilename string) error {
+	videoFile, err := os.OpenFile(outputFilename, os.O_CREATE|os.O_WRONLY|os.O_EXCL, 0644)
 	if err != nil {
 		return err
 	}
 	defer videoFile.Close()
-	fmt.Println("Downloading to " + videoOutput)
+	fmt.Println("Downloading to " + outputFilename)
 
 	if len(videoId) == 0 {
 		videoId = masterJson.FindMaximumBitrateVideo().Id
@@ -93,20 +106,43 @@ func createVideo(client *vimeo.Client, masterJson *vimeo.MasterJson, masterJsonU
 	return nil
 }
 
-func createAudio(client *vimeo.Client, masterJson *vimeo.MasterJson, masterJsonUrl *url.URL) error {
-	audioOutput := masterJson.ClipId + "-audio.mp4"
-	audioFile, err := os.OpenFile(audioOutput, os.O_CREATE|os.O_WRONLY|os.O_EXCL, 0644)
+func createAudio(client *vimeo.Client, masterJson *vimeo.MasterJson, masterJsonUrl *url.URL, outputFilename string) error {
+	audioFile, err := os.OpenFile(outputFilename, os.O_CREATE|os.O_WRONLY|os.O_EXCL, 0644)
 	if err != nil {
 		return err
 	}
 	defer audioFile.Close()
-	fmt.Println("Downloading to " + audioOutput)
+	fmt.Println("Downloading to " + outputFilename)
 
 	if len(audioId) == 0 {
 		audioId = masterJson.FindMaximumBitrateAudio().Id
 	}
 
 	err = masterJson.CreateAudioFile(audioFile, masterJsonUrl, audioId, client)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func combineVideoAndAudio(videoFilename string, audioFilename string, outputFilename string) error {
+	err := exec.Command("ffmpeg", "-version").Run()
+	if err != nil {
+		return err
+	}
+
+	err = exec.Command("ffmpeg", "-i", videoFilename, "-i", audioFilename, "-c", "copy", outputFilename).Run()
+	if err != nil {
+		return err
+	}
+
+	err = os.Remove(videoFilename)
+	if err != nil {
+		return err
+	}
+
+	err = os.Remove(audioFilename)
 	if err != nil {
 		return err
 	}

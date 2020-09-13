@@ -7,20 +7,11 @@ A tool to download private videos on vimeo.
 
 ## Usage
 
-```
-Usage:
-  vimeo-dl [flags]
-
-Flags:
-      --audio-id string     audio id
-  -h, --help                help for vimeo-dl
-  -i, --input string        url for master.json (required)
-      --user-agent string   user-agent for request
-  -v, --version             version for vimeo-dl
-      --video-id string     video id
+```sh
+vimeo-dl --combine -i ${MASTER_JSON_URL}
 ```
 
-## Example
+## Advanced Usage
 
 ```sh
 # Download the video as ${clip_id}-video.mp4 (1080p)
@@ -35,13 +26,32 @@ vimeo-dl -i "https://skyfire.vimeocdn.com/xxx/yyy/live-archive/video/240p,360p,5
 ```
 
 ```sh
-# Download the video the ${clip_id}-video.mp4 and the audio as ${clip_id}-audio.mp4
+# Download the video as ${clip_id}.mp4
 vimeo-dl -i "https://8vod-adaptive.akamaized.net/xxx/yyy/sep/video/9f88d1ff,b83d0f9d,da44206b,f34fd50d,f9ebc26f/master.json?base64_init=1" \
          --video-id "b83d0f9d" \
-         --audio-id "b83d0f9d"
+         --audio-id "b83d0f9d" \
+         --combine
 
-# Combine both files
+# The combine option is equivalent to the following command.
+vimeo-dl -i "https://8vod-adaptive.akamaized.net/xxx/yyy/sep/video/9f88d1ff,b83d0f9d,da44206b,f34fd50d,f9ebc26f/master.json?base64_init=1" \
+         --video-id "b83d0f9d" \
+         --audio-id "b83d0f9d" \
 ffmpeg -i ${clip_id}-video.mp4 -i ${clip_id}-audio.mp4 -c copy ${clip_id}.mp4
+```
+
+## Options
+
+```
+Usage:
+  vimeo-dl [flags]
+
+Flags:
+      --audio-id string     audio id
+  -h, --help                help for vimeo-dl
+  -i, --input string        url for master.json (required)
+      --user-agent string   user-agent for request
+  -v, --version             version for vimeo-dl
+      --video-id string     video id
 ```
 
 ## Install
