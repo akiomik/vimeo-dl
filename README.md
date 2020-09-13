@@ -53,11 +53,11 @@ go get -u github.com/akiomik/vimeo-dl
 ## Build
 
 ```sh
-go build -v .
+make build
 ```
 
 ## Test
 
 ```sh
-go test -v ./...
+make test
 ```
