@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/base64"
 	"fmt"
 	"net/url"
 	"os"
@@ -31,20 +32,29 @@ var rootCmd = &cobra.Command{
 
 		masterJsonUrl, err := url.Parse(input)
 		if err != nil {
-			fmt.Println(err.Error())
+			fmt.Println("Error:", err.Error())
 			os.Exit(1)
 		}
 
 		masterJson, err := client.GetMasterJson(masterJsonUrl)
 		if err != nil {
-			fmt.Println(err.Error())
+			fmt.Println("Error:", err.Error())
 			os.Exit(1)
 		}
 
 		videoOutputFilename := masterJson.ClipId + "-video.mp4"
 		err = createVideo(client, masterJson, masterJsonUrl, videoOutputFilename)
 		if err != nil {
-			fmt.Println(err.Error())
+			fmt.Println("Error:", err.Error())
+
+			if _, ok := err.(base64.CorruptInputError); ok {
+				query := masterJsonUrl.Query()
+				query.Add("base64_init", "1")
+				query.Del("query_string_ranges")
+				masterJsonUrl.RawQuery = query.Encode()
+				fmt.Println("Try this url:", masterJsonUrl.String())
+			}
+
 			os.Exit(1)
 		}
 
@@ -52,7 +62,7 @@ var rootCmd = &cobra.Command{
 			audioOutputFilename := masterJson.ClipId + "-audio.mp4"
 			err = createAudio(client, masterJson, masterJsonUrl, audioOutputFilename)
 			if err != nil {
-				fmt.Println(err.Error())
+				fmt.Println("Error:", err.Error())
 				os.Exit(1)
 			}
 
@@ -60,7 +70,7 @@ var rootCmd = &cobra.Command{
 				outputFilename := masterJson.ClipId + ".mp4"
 				err = combineVideoAndAudio(videoOutputFilename, audioOutputFilename, outputFilename)
 				if err != nil {
-					fmt.Println(err.Error())
+					fmt.Println("Error:", err.Error())
 					os.Exit(1)
 				}
 			}
@@ -81,7 +91,7 @@ func init() {
 
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Println(err)
+		fmt.Println("Error:", err.Error())
 		os.Exit(1)
 	}
 }
