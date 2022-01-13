@@ -58,8 +58,12 @@ Flags:
 
 ## Install
 
-```
+```sh
+# go <1.6
 go get -u github.com/akiomik/vimeo-dl
+
+# go >=1.6
+go install github.com/akiomik/vimeo-dl
 ```
 
 ## Build
