@@ -58,6 +58,8 @@ Flags:
 
 ## Install
 
+The binaries for Linux and macOS can also be downloaded from [the release page](https://github.com/akiomik/vimeo-dl/releases/latest).
+
 ```sh
 # go <1.6
 go get -u github.com/akiomik/vimeo-dl
