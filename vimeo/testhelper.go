@@ -16,7 +16,7 @@ package vimeo
 
 import (
 	"bytes"
-	"io/ioutil"
+	"io"
 	"net/http"
 )
 
@@ -35,13 +35,13 @@ func NewMockClient(mock MockRoundTripper) *http.Client {
 func NewMockReponseFromString(body string) *http.Response {
 	return &http.Response{
 		StatusCode: http.StatusOK,
-		Body:       ioutil.NopCloser(bytes.NewBufferString(body)),
+		Body:       io.NopCloser(bytes.NewBufferString(body)),
 	}
 }
 
 func NewMockReponseFromBytes(body []byte) *http.Response {
 	return &http.Response{
 		StatusCode: http.StatusOK,
-		Body:       ioutil.NopCloser(bytes.NewBuffer(body)),
+		Body:       io.NopCloser(bytes.NewBuffer(body)),
 	}
 }

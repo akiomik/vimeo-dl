@@ -322,7 +322,7 @@ func TestCreateVideoFile(t *testing.T) {
 	}
 
 	actual := output.Bytes()
-	if bytes.Compare(expected, actual) != 0 {
+	if !bytes.Equal(expected, actual) {
 		t.Errorf("CreateVideoFile output does not match.\nexpected: %v\nactual:   %v", expected, actual)
 		return
 	}
@@ -377,7 +377,7 @@ func TestCreateAudioFile(t *testing.T) {
 	}
 
 	actual := output.Bytes()
-	if bytes.Compare(expected, actual) != 0 {
+	if !bytes.Equal(expected, actual) {
 		t.Errorf("CreateAudioFile output does not match.\nexpected: %v\nactual:   %v", expected, actual)
 		return
 	}
