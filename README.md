@@ -1,7 +1,7 @@
 vimeo-dl
 ========
 
-[![Go](https://github.com/akiomik/vimeo-dl/workflows/Go/badge.svg?branch=main)](https://github.com/akiomik/vimeo-dl/actions?query=workflow%3AGo)
+[![Go](https://github.com/akiomik/vimeo-dl/actions/workflows/go.yml/badge.svg)](https://github.com/akiomik/vimeo-dl/actions/workflows/go.yml)
 
 A tool to download private videos on vimeo.
 
