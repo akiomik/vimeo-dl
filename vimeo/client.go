@@ -17,7 +17,6 @@ package vimeo
 import (
 	"encoding/json"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 
@@ -59,7 +58,11 @@ func (c *Client) GetMasterJson(url *url.URL) (*MasterJson, error) {
 	}
 	defer res.Body.Close()
 
-	jsonBlob, err := ioutil.ReadAll(res.Body)
+	jsonBlob, err := io.ReadAll(res.Body)
+	if err != nil {
+		return nil, err
+	}
+
 	masterJson := new(MasterJson)
 	err = json.Unmarshal(jsonBlob, &masterJson)
 	if err != nil {
