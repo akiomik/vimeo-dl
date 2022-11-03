@@ -1,5 +1,6 @@
 builds:
-  goos:
-    - darwin
-    - linux
-    - windows
+  -
+    goos:
+      - darwin
+      - linux
+      - windows
