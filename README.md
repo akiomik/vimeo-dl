@@ -58,7 +58,14 @@ Flags:
 
 ## Install
 
-The binaries for Linux and macOS can also be downloaded from [the release page](https://github.com/akiomik/vimeo-dl/releases/latest).
+### Pre-compiled binaries
+
+Currently, Windows, macOS and linux are supported.
+
+- Download the latest release from [the release page](https://github.com/akiomik/vimeo-dl/releases/latest).
+- Extract the downloaded `.tar.gz` file.
+
+### go install
 
 ```sh
 # go <1.6
