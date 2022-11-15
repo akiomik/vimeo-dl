@@ -67,8 +67,8 @@ Currently, Windows, macOS and linux are supported.
 
 ### On a recent Mac
 
-1. Download from one of the Darwin files [from the release page](https://github.com/akiomik/vimeo-dl/releases/latest).
-2. Unzip and run `vimeo-dl` from the Terminal.
+1. Download one of the Darwin files [from the release page](https://github.com/akiomik/vimeo-dl/releases/latest).
+2. Unzip the file, and run `vimeo-dl` from the Terminal.
 3. You will get an error message: `“vimeo-dl” cannot be opened because the developer cannot be verified.`
 4. Close the error message and go to "System Preferences > Security & Privacy".
 5. Find the text `“vimeo-dl” was blocked` and click on the `Allow anyway` button next to it.
