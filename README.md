@@ -86,3 +86,23 @@ make build
 ```sh
 make test
 ```
+
+## Docker
+
+Using Docker images is useful if you do not have ffmpeg installed.
+
+Build docker image:
+
+```
+# build docker image (with ffmpeg)
+docker build -t vimeo-dl .
+
+# build docker image without ffpeg
+docker build -t vimeo-dl:no-ffmpeg --target=no-ffmpeg .
+```
+
+Use docker image (instead of the binary):
+```
+docker run -v "$(pwd)/downloads:/downloads" vimeo-dl ...
+```
+
