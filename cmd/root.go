@@ -20,6 +20,8 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"regexp"
+	"strings"
 
 	"github.com/akiomik/vimeo-dl/config"
 	"github.com/akiomik/vimeo-dl/vimeo"
@@ -31,6 +33,7 @@ var (
 	userAgent string
 	videoId   string
 	audioId   string
+	output    string
 	combine   bool
 )
 
@@ -56,7 +59,8 @@ var rootCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		videoOutputFilename := masterJson.ClipId + "-video.mp4"
+		videoOutputFilename := generateOutputFilename(masterJson.ClipId, "video.mp4")
+
 		err = createVideo(client, masterJson, masterJsonUrl, videoOutputFilename)
 		if err != nil {
 			fmt.Println("Error:", err.Error())
@@ -73,7 +77,8 @@ var rootCmd = &cobra.Command{
 		}
 
 		if len(masterJson.Audio) > 0 {
-			audioOutputFilename := masterJson.ClipId + "-audio.mp4"
+			audioOutputFilename := generateOutputFilename(masterJson.ClipId, "audio.mp4")
+
 			err = createAudio(client, masterJson, masterJsonUrl, audioOutputFilename)
 			if err != nil {
 				fmt.Println("Error:", err.Error())
@@ -81,7 +86,8 @@ var rootCmd = &cobra.Command{
 			}
 
 			if combine {
-				outputFilename := masterJson.ClipId + ".mp4"
+				outputFilename := generateOutputFilename(masterJson.ClipId, ".mp4")
+
 				err = combineVideoAndAudio(videoOutputFilename, audioOutputFilename, outputFilename)
 				if err != nil {
 					fmt.Println("Error:", err.Error())
@@ -99,6 +105,7 @@ func init() {
 	rootCmd.Flags().StringVarP(&userAgent, "user-agent", "", "", "user-agent for request")
 	rootCmd.Flags().StringVarP(&videoId, "video-id", "", "", "video id")
 	rootCmd.Flags().StringVarP(&audioId, "audio-id", "", "", "audio id")
+	rootCmd.Flags().StringVarP(&output, "output", "o", "", "output file name")
 	rootCmd.Flags().BoolVarP(&combine, "combine", "", false, "combine video and audio into a single mp4 (ffmpeg is required)")
 	rootCmd.MarkFlagRequired("input")
 }
@@ -172,4 +179,20 @@ func combineVideoAndAudio(videoFilename string, audioFilename string, outputFile
 	}
 
 	return nil
+}
+
+func generateOutputFilename(clipId, suffix string) string {
+	if output == "" {
+		return clipId + "-" + suffix
+	}
+
+	sanitizedOutput := sanitizeFileName(output)
+	return sanitizedOutput + "-" + suffix
+}
+
+func sanitizeFileName(filename string) string {
+	invalidCharRegex := regexp.MustCompile(`[\\/:"*?<>|]`)
+	filename = invalidCharRegex.ReplaceAllString(filename, "_")
+	filename = strings.TrimSpace(filename)
+	return filename
 }

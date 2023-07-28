@@ -40,6 +40,15 @@ vimeo-dl -i "https://8vod-adaptive.akamaized.net/xxx/yyy/sep/video/9f88d1ff,b83d
 ffmpeg -i ${clip_id}-video.mp4 -i ${clip_id}-audio.mp4 -c copy ${clip_id}.mp4
 ```
 
+```sh
+# Download a video with the specified output file name
+vimeo-dl -i "https://8vod-adaptive.akamaized.net/xxx/yyy/sep/video/9f88d1ff,b83d0f9d,da44206b,f34fd50d,f9ebc26f/master.json?base64_init=1" \
+         --video-id "b83d0f9d" \
+         --audio-id "b83d0f9d" \
+         --combine \
+         -o "output"
+```
+
 ## Options
 
 ```
@@ -54,6 +63,7 @@ Flags:
       --user-agent string   user-agent for request
   -v, --version             version for vimeo-dl
       --video-id string     video id
+  -o, --output              output file name
 ```
 
 ## Install
