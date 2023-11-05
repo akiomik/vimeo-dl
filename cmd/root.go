@@ -27,11 +27,12 @@ import (
 )
 
 var (
-	input     string
-	userAgent string
-	videoId   string
-	audioId   string
-	combine   bool
+	input          string
+	userAgent      string
+	videoId        string
+	audioId        string
+	outputFilename string
+	combine        bool
 )
 
 var rootCmd = &cobra.Command{
@@ -56,7 +57,11 @@ var rootCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		videoOutputFilename := masterJson.ClipId + "-video.mp4"
+		if outputFilename == "" {
+			outputFilename = masterJson.ClipId
+		}
+
+		videoOutputFilename := outputFilename + "-video.mp4"
 		err = createVideo(client, masterJson, masterJsonUrl, videoOutputFilename)
 		if err != nil {
 			fmt.Println("Error:", err.Error())
@@ -73,7 +78,7 @@ var rootCmd = &cobra.Command{
 		}
 
 		if len(masterJson.Audio) > 0 {
-			audioOutputFilename := masterJson.ClipId + "-audio.mp4"
+			audioOutputFilename := outputFilename + "-audio.mp4"
 			err = createAudio(client, masterJson, masterJsonUrl, audioOutputFilename)
 			if err != nil {
 				fmt.Println("Error:", err.Error())
@@ -81,7 +86,7 @@ var rootCmd = &cobra.Command{
 			}
 
 			if combine {
-				outputFilename := masterJson.ClipId + ".mp4"
+				outputFilename := outputFilename + ".mp4"
 				err = combineVideoAndAudio(videoOutputFilename, audioOutputFilename, outputFilename)
 				if err != nil {
 					fmt.Println("Error:", err.Error())
@@ -99,6 +104,7 @@ func init() {
 	rootCmd.Flags().StringVarP(&userAgent, "user-agent", "", "", "user-agent for request")
 	rootCmd.Flags().StringVarP(&videoId, "video-id", "", "", "video id")
 	rootCmd.Flags().StringVarP(&audioId, "audio-id", "", "", "audio id")
+	rootCmd.Flags().StringVarP(&outputFilename, "output-file-name", "o", "", "output file name")
 	rootCmd.Flags().BoolVarP(&combine, "combine", "", false, "combine video and audio into a single mp4 (ffmpeg is required)")
 	rootCmd.MarkFlagRequired("input")
 }

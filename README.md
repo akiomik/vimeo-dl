@@ -33,6 +33,13 @@ vimeo-dl -i "https://8vod-adaptive.akamaized.net/xxx/yyy/sep/video/9f88d1ff,b83d
          --audio-id "b83d0f9d" \
          --combine
 
+# Download a video as my-video-file-name.mp4.
+vimeo-dl -i "https://8vod-adaptive.akamaized.net/xxx/yyy/sep/video/9f88d1ff,b83d0f9d,da44206b,f34fd50d,f9ebc26f/master.json?base64_init=1" \
+         --video-id "b83d0f9d" \
+         --audio-id "b83d0f9d" \
+         --combine \
+         --output "my-video-file-name"
+
 # The combine option is equivalent to the following command.
 vimeo-dl -i "https://8vod-adaptive.akamaized.net/xxx/yyy/sep/video/9f88d1ff,b83d0f9d,da44206b,f34fd50d,f9ebc26f/master.json?base64_init=1" \
          --video-id "b83d0f9d" \
@@ -51,6 +58,7 @@ Flags:
       --combine             combine video and audio into a single mp4 (ffmpeg is required)
   -h, --help                help for vimeo-dl
   -i, --input string        url for master.json (required)
+  -o, --output string       output file name
       --user-agent string   user-agent for request
   -v, --version             version for vimeo-dl
       --video-id string     video id
