@@ -61,21 +61,21 @@ var rootCmd = &cobra.Command{
 			outputFilename = masterJson.ClipId
 		}
 
-    videoOutputFilename := outputFilename + "-video.mp4"
-    err = createVideo(client, masterJson, masterJsonUrl, videoOutputFilename)
-    if err != nil {
-      fmt.Println("Error:", err.Error())
+		videoOutputFilename := outputFilename + "-video.mp4"
+		err = createVideo(client, masterJson, masterJsonUrl, videoOutputFilename)
+		if err != nil {
+			fmt.Println("Error:", err.Error())
 
-      if _, ok := err.(base64.CorruptInputError); ok {
-        query := masterJsonUrl.Query()
-        query.Add("base64_init", "1")
-        query.Del("query_string_ranges")
-        masterJsonUrl.RawQuery = query.Encode()
-        fmt.Println("Try this url:", masterJsonUrl.String())
-      }
+			if _, ok := err.(base64.CorruptInputError); ok {
+				query := masterJsonUrl.Query()
+				query.Add("base64_init", "1")
+				query.Del("query_string_ranges")
+				masterJsonUrl.RawQuery = query.Encode()
+				fmt.Println("Try this url:", masterJsonUrl.String())
+			}
 
-      os.Exit(1)
-    }
+			os.Exit(1)
+		}
 
 		if len(masterJson.Audio) > 0 {
 			audioOutputFilename := outputFilename + "-audio.mp4"
@@ -85,14 +85,14 @@ var rootCmd = &cobra.Command{
 				os.Exit(1)
 			}
 
-      if combine {
-        outputFilename := outputFilename + ".mp4"
-        err = combineVideoAndAudio(videoOutputFilename, audioOutputFilename, outputFilename)
-        if err != nil {
-          fmt.Println("Error:", err.Error())
-          os.Exit(1)
-        }
-      }
+			if combine {
+				outputFilename := outputFilename + ".mp4"
+				err = combineVideoAndAudio(videoOutputFilename, audioOutputFilename, outputFilename)
+				if err != nil {
+					fmt.Println("Error:", err.Error())
+					os.Exit(1)
+				}
+			}
 		}
 
 		fmt.Println("Done!")
@@ -117,23 +117,23 @@ func Execute() {
 }
 
 func createVideo(client *vimeo.Client, masterJson *vimeo.MasterJson, masterJsonUrl *url.URL, outputFilename string) error {
-  videoFile, err := os.OpenFile(outputFilename, os.O_CREATE|os.O_WRONLY|os.O_EXCL, 0644)
-  if err != nil {
-    return err
-  }
-  defer videoFile.Close()
-  fmt.Println("Downloading to " + outputFilename)
+	videoFile, err := os.OpenFile(outputFilename, os.O_CREATE|os.O_WRONLY|os.O_EXCL, 0644)
+	if err != nil {
+		return err
+	}
+	defer videoFile.Close()
+	fmt.Println("Downloading to " + outputFilename)
 
-  if len(videoId) == 0 {
-    videoId = masterJson.FindMaximumBitrateVideo().Id
-  }
+	if len(videoId) == 0 {
+		videoId = masterJson.FindMaximumBitrateVideo().Id
+	}
 
-  err = masterJson.CreateVideoFile(videoFile, masterJsonUrl, videoId, client)
-  if err != nil {
-    return err
-  }
+	err = masterJson.CreateVideoFile(videoFile, masterJsonUrl, videoId, client)
+	if err != nil {
+		return err
+	}
 
-  return nil
+	return nil
 }
 
 func createAudio(client *vimeo.Client, masterJson *vimeo.MasterJson, masterJsonUrl *url.URL, outputFilename string) error {
