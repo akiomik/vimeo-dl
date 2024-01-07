@@ -66,7 +66,7 @@ func ConsolidateTempFiles(output io.Writer, results []*os.File) error {
 			return err
 		}
 
-		if err := os.Remove(file.Name()); err != nil {
+		if err := Cleanup(file); err != nil {
 			return err
 		}
 	}

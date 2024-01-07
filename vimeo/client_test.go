@@ -16,6 +16,7 @@ package vimeo
 
 import (
 	"bytes"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"reflect"
@@ -104,16 +105,16 @@ func TestDownload(t *testing.T) {
 	})
 
 	parcelUrl, _ := url.Parse("http://example.com/parcel/1080.mp4?range=0-100")
-	output := new(bytes.Buffer)
-	err := client.Download(parcelUrl, output)
+	file, err := client.Download(parcelUrl)
+	defer Cleanup(file)
 	if err != nil {
 		t.Errorf("Download request is failed: %v", err)
 		return
 	}
 
-	actual := output.Bytes()
-	if !bytes.Equal(expected, actual) {
-		t.Errorf("Download output does not match.\nexpected: %v\nactual:   %v", expected, actual)
+	v, err := ioutil.ReadFile(file.Name())
+	if !bytes.Equal(expected, v) {
+		t.Errorf("Download output does not match.\nexpected: %v\nv:   %v", expected, v)
 		return
 	}
 }

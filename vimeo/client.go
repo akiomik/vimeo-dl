@@ -86,14 +86,21 @@ func (c *Client) Download(url *url.URL) (*os.File, error) {
 	formattedPath := fmt.Sprintf("%s.tmp", newUUID)
 	out, err := os.Create(formattedPath)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	defer out.Close()
 
 	_, err = io.Copy(out, res.Body)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	return out, nil
+}
+
+func Cleanup(file *os.File) error {
+	if err := os.Remove(file.Name()); err != nil {
+		return err
+	}
+	return nil
 }
