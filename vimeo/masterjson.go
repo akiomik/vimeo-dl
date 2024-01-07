@@ -240,6 +240,11 @@ func (mj *MasterJson) CreateVideoFile(output io.Writer, masterJsonUrl *url.URL, 
 	}
 
 	if err := g.Wait(); err != nil {
+    for _, result := range results {
+			if err := Cleanup(result); err != nil {
+				return err
+			}
+		}
 		return err
 	}
 
@@ -285,6 +290,11 @@ func (mj *MasterJson) CreateAudioFile(output io.Writer, masterJsonUrl *url.URL, 
 	}
 
 	if err := g.Wait(); err != nil {
+		for _, result := range results {
+			if err := Cleanup(result); err != nil {
+				return err
+			}
+		}
 		return err
 	}
 
