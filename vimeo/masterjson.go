@@ -19,10 +19,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
-  "os"
 	"net/url"
+	"os"
 
-  "golang.org/x/sync/errgroup"
+	"golang.org/x/sync/errgroup"
 )
 
 type Segment struct {
@@ -53,25 +53,25 @@ type MasterJson struct {
 }
 
 func ConsolidateTempFiles(output io.Writer, results []*os.File) error {
-  for _, result := range results {
-    file, err := os.Open(result.Name())
+	for _, result := range results {
+		file, err := os.Open(result.Name())
 
-    if err != nil {
-      return err
-    }
+		if err != nil {
+			return err
+		}
 
-    io.Copy(output, file)
+		io.Copy(output, file)
 
-    if err := file.Close(); err != nil {
-        return err
-    }
+		if err := file.Close(); err != nil {
+			return err
+		}
 
-    if err := os.Remove(file.Name()); err != nil {
-        return err
-    }
-  }
+		if err := os.Remove(file.Name()); err != nil {
+			return err
+		}
+	}
 
-  return nil
+	return nil
 }
 
 func (v *Video) DecodedInitSegment() ([]byte, error) {
@@ -205,47 +205,47 @@ func (mj *MasterJson) AudioSegmentUrls(masterJsonUrl *url.URL, id string) ([]*ur
 }
 
 func (mj *MasterJson) CreateVideoFile(output io.Writer, masterJsonUrl *url.URL, id string, client *Client) error {
-  video, err := mj.FindVideo(id)
-  if err != nil {
-    return err
-  }
+	video, err := mj.FindVideo(id)
+	if err != nil {
+		return err
+	}
 
-  initSegment, err := video.DecodedInitSegment()
-  if err != nil {
-    return err
-  }
-  output.Write(initSegment)
+	initSegment, err := video.DecodedInitSegment()
+	if err != nil {
+		return err
+	}
+	output.Write(initSegment)
 
-  videoSegmentUrls, err := mj.VideoSegmentUrls(masterJsonUrl, id)
-  if err != nil {
-    return err
-  }
+	videoSegmentUrls, err := mj.VideoSegmentUrls(masterJsonUrl, id)
+	if err != nil {
+		return err
+	}
 
-  concurrency := 50
-  var g errgroup.Group
-  g.SetLimit(concurrency)
-  results := make([]*os.File, len(videoSegmentUrls))
+	concurrency := 50
+	var g errgroup.Group
+	g.SetLimit(concurrency)
+	results := make([]*os.File, len(videoSegmentUrls))
 
-  for i, videoSegmentUrl := range videoSegmentUrls {
-    i, videoSegmentUrl := i, videoSegmentUrl // https://golang.org/doc/faq#closures_and_goroutines
-    g.Go(func() error {
-      fmt.Println("Downloading " + videoSegmentUrl.String())
-      file, err := client.Download(videoSegmentUrl)
-      if err == nil {
-        results[i] = file
-      }
+	for i, videoSegmentUrl := range videoSegmentUrls {
+		i, videoSegmentUrl := i, videoSegmentUrl // https://golang.org/doc/faq#closures_and_goroutines
+		g.Go(func() error {
+			fmt.Println("Downloading " + videoSegmentUrl.String())
+			file, err := client.Download(videoSegmentUrl)
+			if err == nil {
+				results[i] = file
+			}
 
-      return err
-    })
-  }
+			return err
+		})
+	}
 
-  if err := g.Wait(); err != nil {
-    return err
-  }
+	if err := g.Wait(); err != nil {
+		return err
+	}
 
-  ConsolidateTempFiles(output, results)
+	ConsolidateTempFiles(output, results)
 
-  return nil
+	return nil
 }
 
 func (mj *MasterJson) CreateAudioFile(output io.Writer, masterJsonUrl *url.URL, id string, client *Client) error {
@@ -265,30 +265,30 @@ func (mj *MasterJson) CreateAudioFile(output io.Writer, masterJsonUrl *url.URL, 
 		return err
 	}
 
-  concurrency := 50
-  var g errgroup.Group
-  g.SetLimit(concurrency)
-  results := make([]*os.File, len(audioSegmentUrls))
+	concurrency := 50
+	var g errgroup.Group
+	g.SetLimit(concurrency)
+	results := make([]*os.File, len(audioSegmentUrls))
 
-  // map
+	// map
 	for i, audioSegmentUrl := range audioSegmentUrls {
-    i, audioSegmentUrl := i, audioSegmentUrl; // https://golang.org/doc/faq#closures_and_goroutines
-    g.Go(func() error {
-      fmt.Println("Downloading " + audioSegmentUrl.String());
-      file, err := client.Download(audioSegmentUrl)
-      if err == nil {
-        results[i] = file
-      }
+		i, audioSegmentUrl := i, audioSegmentUrl // https://golang.org/doc/faq#closures_and_goroutines
+		g.Go(func() error {
+			fmt.Println("Downloading " + audioSegmentUrl.String())
+			file, err := client.Download(audioSegmentUrl)
+			if err == nil {
+				results[i] = file
+			}
 
-      return err
-    })
+			return err
+		})
 	}
 
-  if err := g.Wait(); err != nil {
-    return err
-  }
+	if err := g.Wait(); err != nil {
+		return err
+	}
 
-  ConsolidateTempFiles(output, results)
+	ConsolidateTempFiles(output, results)
 
 	return nil
 }
