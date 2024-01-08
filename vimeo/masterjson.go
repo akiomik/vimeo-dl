@@ -204,7 +204,7 @@ func (mj *MasterJson) AudioSegmentUrls(masterJsonUrl *url.URL, id string) ([]*ur
 	return urls, nil
 }
 
-func (mj *MasterJson) CreateVideoFile(output io.Writer, masterJsonUrl *url.URL, id string, client *Client) error {
+func (mj *MasterJson) CreateVideoFile(output io.Writer, masterJsonUrl *url.URL, id string, client *Client, concurrency int) error {
 	video, err := mj.FindVideo(id)
 	if err != nil {
 		return err
@@ -221,7 +221,6 @@ func (mj *MasterJson) CreateVideoFile(output io.Writer, masterJsonUrl *url.URL, 
 		return err
 	}
 
-	concurrency := 50
 	var g errgroup.Group
 	g.SetLimit(concurrency)
 	results := make([]*os.File, len(videoSegmentUrls))
@@ -240,7 +239,7 @@ func (mj *MasterJson) CreateVideoFile(output io.Writer, masterJsonUrl *url.URL, 
 	}
 
 	if err := g.Wait(); err != nil {
-    for _, result := range results {
+		for _, result := range results {
 			if err := Cleanup(result); err != nil {
 				return err
 			}
@@ -253,7 +252,7 @@ func (mj *MasterJson) CreateVideoFile(output io.Writer, masterJsonUrl *url.URL, 
 	return nil
 }
 
-func (mj *MasterJson) CreateAudioFile(output io.Writer, masterJsonUrl *url.URL, id string, client *Client) error {
+func (mj *MasterJson) CreateAudioFile(output io.Writer, masterJsonUrl *url.URL, id string, client *Client, concurrency int) error {
 	audio, err := mj.FindAudio(id)
 	if err != nil {
 		return err
@@ -270,12 +269,10 @@ func (mj *MasterJson) CreateAudioFile(output io.Writer, masterJsonUrl *url.URL, 
 		return err
 	}
 
-	concurrency := 50
 	var g errgroup.Group
 	g.SetLimit(concurrency)
 	results := make([]*os.File, len(audioSegmentUrls))
 
-	// map
 	for i, audioSegmentUrl := range audioSegmentUrls {
 		i, audioSegmentUrl := i, audioSegmentUrl // https://golang.org/doc/faq#closures_and_goroutines
 		g.Go(func() error {

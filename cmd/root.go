@@ -33,6 +33,7 @@ var (
 	audioId        string
 	outputFilename string
 	combine        bool
+	concurrency    int
 )
 
 var rootCmd = &cobra.Command{
@@ -62,7 +63,7 @@ var rootCmd = &cobra.Command{
 		}
 
 		videoOutputFilename := outputFilename + "-video.mp4"
-		err = createVideo(client, masterJson, masterJsonUrl, videoOutputFilename)
+		err = createVideo(client, masterJson, masterJsonUrl, videoOutputFilename, concurrency)
 		if err != nil {
 			fmt.Println("Error:", err.Error())
 
@@ -79,7 +80,7 @@ var rootCmd = &cobra.Command{
 
 		if len(masterJson.Audio) > 0 {
 			audioOutputFilename := outputFilename + "-audio.mp4"
-			err = createAudio(client, masterJson, masterJsonUrl, audioOutputFilename)
+			err = createAudio(client, masterJson, masterJsonUrl, audioOutputFilename, concurrency)
 			if err != nil {
 				fmt.Println("Error:", err.Error())
 				os.Exit(1)
@@ -106,6 +107,7 @@ func init() {
 	rootCmd.Flags().StringVarP(&audioId, "audio-id", "", "", "audio id")
 	rootCmd.Flags().StringVarP(&outputFilename, "output-file-name", "o", "", "output file name")
 	rootCmd.Flags().BoolVarP(&combine, "combine", "", false, "combine video and audio into a single mp4 (ffmpeg is required)")
+	rootCmd.Flags().IntVarP(&concurrency, "concurrency", "", 50, "concurrency for video & audio downloading")
 	rootCmd.MarkFlagRequired("input")
 }
 
@@ -116,7 +118,7 @@ func Execute() {
 	}
 }
 
-func createVideo(client *vimeo.Client, masterJson *vimeo.MasterJson, masterJsonUrl *url.URL, outputFilename string) error {
+func createVideo(client *vimeo.Client, masterJson *vimeo.MasterJson, masterJsonUrl *url.URL, outputFilename string, concurrency int) error {
 	videoFile, err := os.OpenFile(outputFilename, os.O_CREATE|os.O_WRONLY|os.O_EXCL, 0644)
 	if err != nil {
 		return err
@@ -128,7 +130,7 @@ func createVideo(client *vimeo.Client, masterJson *vimeo.MasterJson, masterJsonU
 		videoId = masterJson.FindMaximumBitrateVideo().Id
 	}
 
-	err = masterJson.CreateVideoFile(videoFile, masterJsonUrl, videoId, client)
+	err = masterJson.CreateVideoFile(videoFile, masterJsonUrl, videoId, client, concurrency)
 	if err != nil {
 		return err
 	}
@@ -136,7 +138,7 @@ func createVideo(client *vimeo.Client, masterJson *vimeo.MasterJson, masterJsonU
 	return nil
 }
 
-func createAudio(client *vimeo.Client, masterJson *vimeo.MasterJson, masterJsonUrl *url.URL, outputFilename string) error {
+func createAudio(client *vimeo.Client, masterJson *vimeo.MasterJson, masterJsonUrl *url.URL, outputFilename string, concurrency int) error {
 	audioFile, err := os.OpenFile(outputFilename, os.O_CREATE|os.O_WRONLY|os.O_EXCL, 0644)
 	if err != nil {
 		return err
@@ -148,7 +150,7 @@ func createAudio(client *vimeo.Client, masterJson *vimeo.MasterJson, masterJsonU
 		audioId = masterJson.FindMaximumBitrateAudio().Id
 	}
 
-	err = masterJson.CreateAudioFile(audioFile, masterJsonUrl, audioId, client)
+	err = masterJson.CreateAudioFile(audioFile, masterJsonUrl, audioId, client, concurrency)
 	if err != nil {
 		return err
 	}
