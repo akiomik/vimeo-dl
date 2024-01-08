@@ -84,7 +84,7 @@ func (c *Client) Download(url *url.URL) (*os.File, error) {
 
 	newUUID := uuid.New()
 	formattedPath := fmt.Sprintf("%s.tmp", newUUID)
-	out, err := os.Create(formattedPath)
+	out, err := os.CreateTemp("", formattedPath)
 	if err != nil {
 		return nil, err
 	}
