@@ -16,11 +16,14 @@ package vimeo
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 
 	"github.com/akiomik/vimeo-dl/config"
+	"github.com/google/uuid"
 )
 
 type Client struct {
@@ -72,17 +75,32 @@ func (c *Client) GetMasterJson(url *url.URL) (*MasterJson, error) {
 	return masterJson, nil
 }
 
-func (c *Client) Download(url *url.URL, output io.Writer) error {
+func (c *Client) Download(url *url.URL) (*os.File, error) {
 	res, err := c.get(url)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer res.Body.Close()
 
-	_, err = io.Copy(output, res.Body)
+	newUUID := uuid.New()
+	formattedPath := fmt.Sprintf("%s.tmp", newUUID)
+	out, err := os.CreateTemp("", formattedPath)
 	if err != nil {
-		return err
+		return nil, err
+	}
+	defer out.Close()
+
+	_, err = io.Copy(out, res.Body)
+	if err != nil {
+		return nil, err
 	}
 
+	return out, nil
+}
+
+func Cleanup(file *os.File) error {
+	if err := os.Remove(file.Name()); err != nil {
+		return err
+	}
 	return nil
 }

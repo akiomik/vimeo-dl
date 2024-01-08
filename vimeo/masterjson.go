@@ -20,6 +20,9 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"os"
+
+	"golang.org/x/sync/errgroup"
 )
 
 type Segment struct {
@@ -47,6 +50,28 @@ type MasterJson struct {
 	BaseUrl string  `json:"base_url"`
 	Video   []Video `json:"video"`
 	Audio   []Audio `json:"audio"`
+}
+
+func ConsolidateTempFiles(output io.Writer, results []*os.File) error {
+	for _, result := range results {
+		file, err := os.Open(result.Name())
+
+		if err != nil {
+			return err
+		}
+
+		io.Copy(output, file)
+
+		if err := file.Close(); err != nil {
+			return err
+		}
+
+		if err := Cleanup(file); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (v *Video) DecodedInitSegment() ([]byte, error) {
@@ -179,7 +204,7 @@ func (mj *MasterJson) AudioSegmentUrls(masterJsonUrl *url.URL, id string) ([]*ur
 	return urls, nil
 }
 
-func (mj *MasterJson) CreateVideoFile(output io.Writer, masterJsonUrl *url.URL, id string, client *Client) error {
+func (mj *MasterJson) CreateVideoFile(output *os.File, masterJsonUrl *url.URL, id string, client *Client, concurrency int) error {
 	video, err := mj.FindVideo(id)
 	if err != nil {
 		return err
@@ -196,18 +221,41 @@ func (mj *MasterJson) CreateVideoFile(output io.Writer, masterJsonUrl *url.URL, 
 		return err
 	}
 
-	for _, videoSegmentUrl := range videoSegmentUrls {
-		fmt.Println("Downloading " + videoSegmentUrl.String())
-		err = client.Download(videoSegmentUrl, output)
-		if err != nil {
+	var g errgroup.Group
+	g.SetLimit(concurrency)
+	results := make([]*os.File, len(videoSegmentUrls))
+
+	for i, videoSegmentUrl := range videoSegmentUrls {
+		i, videoSegmentUrl := i, videoSegmentUrl // https://golang.org/doc/faq#closures_and_goroutines
+		g.Go(func() error {
+			fmt.Println("Downloading " + videoSegmentUrl.String())
+			file, err := client.Download(videoSegmentUrl)
+			if err == nil {
+				results[i] = file
+			}
+
+			return err
+		})
+	}
+
+	if err := g.Wait(); err != nil {
+		for _, result := range results {
+			if err := Cleanup(result); err != nil {
+				return err
+			}
+		}
+		if err := Cleanup(output); err != nil {
 			return err
 		}
+		return err
 	}
+
+	ConsolidateTempFiles(output, results)
 
 	return nil
 }
 
-func (mj *MasterJson) CreateAudioFile(output io.Writer, masterJsonUrl *url.URL, id string, client *Client) error {
+func (mj *MasterJson) CreateAudioFile(output *os.File, masterJsonUrl *url.URL, id string, client *Client, concurrency int) error {
 	audio, err := mj.FindAudio(id)
 	if err != nil {
 		return err
@@ -224,13 +272,36 @@ func (mj *MasterJson) CreateAudioFile(output io.Writer, masterJsonUrl *url.URL, 
 		return err
 	}
 
-	for _, videoSegmentUrl := range audioSegmentUrls {
-		fmt.Println("Downloading " + videoSegmentUrl.String())
-		err = client.Download(videoSegmentUrl, output)
-		if err != nil {
+	var g errgroup.Group
+	g.SetLimit(concurrency)
+	results := make([]*os.File, len(audioSegmentUrls))
+
+	for i, audioSegmentUrl := range audioSegmentUrls {
+		i, audioSegmentUrl := i, audioSegmentUrl // https://golang.org/doc/faq#closures_and_goroutines
+		g.Go(func() error {
+			fmt.Println("Downloading " + audioSegmentUrl.String())
+			file, err := client.Download(audioSegmentUrl)
+			if err == nil {
+				results[i] = file
+			}
+
+			return err
+		})
+	}
+
+	if err := g.Wait(); err != nil {
+		for _, result := range results {
+			if err := Cleanup(result); err != nil {
+				return err
+			}
+		}
+		if err := Cleanup(output); err != nil {
 			return err
 		}
+		return err
 	}
+
+	ConsolidateTempFiles(output, results)
 
 	return nil
 }
