@@ -1,4 +1,4 @@
-FROM golang:1.19.2-alpine AS build
+FROM golang:1.21-alpine AS build
 
 WORKDIR /app
 COPY . .
@@ -8,7 +8,7 @@ RUN CGO_ENABLED=0 go build -o /vimeo-dl .
 
 ############################################################
 
-FROM alpine:3.17 AS no-ffmpeg
+FROM alpine:3.19 AS no-ffmpeg
 COPY --from=build /vimeo-dl /usr/bin/vimeo-dl
 WORKDIR /downloads
 ENTRYPOINT [ "vimeo-dl" ]
