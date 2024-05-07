@@ -13,17 +13,16 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        go: [ '1.18', '1.19' ]
+        go: [ '1.20', '1.21', '1.22' ]
     steps:
-    - uses: actions/checkout@v3
-    - uses: actions/setup-go@v3
+    - uses: actions/checkout@v4
+    - uses: actions/setup-go@v5
       with:
         go-version: ${{ matrix.go }}
         check-latest: true
-        cache: true
     - run: make build
     - run: make test
-    - uses: dominikh/staticcheck-action@v1.2.0
+    - uses: dominikh/staticcheck-action@v1.3.1
       with:
-        version: "2022.1.1"
+        version: "2023.1.7"
         install-go: false
