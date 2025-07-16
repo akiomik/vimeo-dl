@@ -24,6 +24,8 @@ vimeo-dl -i "https://skyfire.vimeocdn.com/xxx/yyy/live-archive/video/240p,360p,5
 vimeo-dl -i "https://skyfire.vimeocdn.com/xxx/yyy/live-archive/video/240p,360p,540p,720p,1080p/master.json?base64_init=1&query_string_ranges=1" \
          --video-id "720p" \
          --user-agent "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/84.0.4147.89 Safari/537.36"
+# you can use jq command to list available formats associated ids (https://jqlang.org)
+curl -s $URL | jq '[.video[] | {id, height, width, codecs}] | sort_by(.height)'
 ```
 
 ```sh
