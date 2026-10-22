@@ -4,7 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+For `0.x.y` releases, `x` increases for breaking changes, while `y` increases for compatible changes and bug fixes.
+
 ## [Unreleased]
+
+## [0.3.0] - 2026-10-22
 
 ### Added
 
@@ -12,7 +16,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
-- Require Go 1.27.3 or newer for source builds and use `go install ...@latest` in the installation instructions.
+- **Breaking:** Require Go 1.27.3 or newer for source builds; release binaries require macOS 13 or newer.
+- Use `go install ...@latest` in the installation instructions.
 - Update Docker images to Alpine 3.24 and FFmpeg 9.0.2.
 - Update the Nix package to nixpkgs 26.05 and Go 1.27.3.
 - Update Cobra to 1.10.2 and pflag to 1.0.10.
@@ -74,7 +79,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - Initial release of the Vimeo video downloader.
 
-[Unreleased]: https://github.com/akiomik/vimeo-dl/compare/v0.2.0...main
+[Unreleased]: https://github.com/akiomik/vimeo-dl/compare/v0.3.0...main
+[0.3.0]: https://github.com/akiomik/vimeo-dl/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/akiomik/vimeo-dl/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/akiomik/vimeo-dl/compare/v0.0.3...v0.1.0
 [0.0.3]: https://github.com/akiomik/vimeo-dl/compare/v0.0.2...v0.0.3

@@ -18,10 +18,14 @@ jobs:
         with:
           go-version-file: .go-version
           check-latest: true
+      - name: Prepare release notes
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: bash scripts/prepare-release-notes.sh "$RELEASE_TAG" "$RUNNER_TEMP/vimeo-dl-release-notes.md"
       - uses: goreleaser/goreleaser-action@v7
         with:
           distribution: goreleaser
-          version: latest
-          args: release --clean
+          version: v2.18.3
+          args: release --clean --release-notes=${{ runner.temp }}/vimeo-dl-release-notes.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
