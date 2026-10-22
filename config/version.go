@@ -14,4 +14,21 @@
 
 package config
 
-const Version = "0.1.0"
+import (
+	"runtime/debug"
+	"strings"
+)
+
+// Version is set from the release tag by GoReleaser. Module installs use the
+// version embedded by the Go toolchain; local builds remain "dev".
+var Version = "dev"
+
+func init() {
+	if Version != "dev" {
+		return
+	}
+
+	if info, ok := debug.ReadBuildInfo(); ok && info.Main.Version != "" && info.Main.Version != "(devel)" {
+		Version = strings.TrimPrefix(info.Main.Version, "v")
+	}
+}
