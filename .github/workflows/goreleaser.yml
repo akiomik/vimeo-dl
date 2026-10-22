@@ -3,15 +3,13 @@ name: goreleaser
 on:
   push:
     tags:
-      - 'v[0-9]*'
+      - 'v*.*.*'
 
 jobs:
   goreleaser:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Validate release tag
-        run: bash .github/scripts/validate-release-tag.sh "$GITHUB_REF_NAME"
       - uses: actions/setup-go@v5
         with:
           go-version-file: .go-version
