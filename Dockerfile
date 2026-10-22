@@ -15,7 +15,7 @@ ENTRYPOINT [ "vimeo-dl" ]
 
 ############################################################
 
-FROM lscr.io/linuxserver/ffmpeg:5.1.2 AS with-ffmpeg
+FROM lscr.io/linuxserver/ffmpeg:9.0.2 AS with-ffmpeg
 COPY --from=build /vimeo-dl /usr/bin/vimeo-dl
 WORKDIR /downloads
 ENTRYPOINT [ "vimeo-dl" ]
