@@ -1,7 +1,7 @@
 {
   description = "A tool to download private videos on vimeo";
 
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-24.05-darwin";
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-26.05-darwin";
 
   outputs = { self, nixpkgs }:
     let
@@ -28,11 +28,11 @@
           pkgs = nixpkgsFor.${system};
         in
         {
-          default = pkgs.buildGoModule rec {
+          default = (pkgs.buildGoModule.override { go = pkgs.go_1_27; }) rec {
             pname = "vimeo-dl";
             inherit version;
             src = ./.;
-            vendorHash = "sha256-hocnLCzWN8srQcO3BMNkd2lt0m54Qe7sqAhUxVZlz1k=";
+            vendorHash = "sha256-9jK3jKbFp+5WSQfMbNzwIB55bC5KScZOaFHItffTF00=";
             nativeBuildInputs = with pkgs; [ makeWrapper ];
             postInstall = ''
               wrapProgram $out/bin/${pname} \
