@@ -13,6 +13,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
+    - name: Test release tag validation
+      run: bash .github/scripts/test-validate-release-tag.sh
     - uses: actions/setup-go@v5
       with:
         go-version-file: .go-version
