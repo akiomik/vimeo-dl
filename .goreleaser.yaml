@@ -1,5 +1,7 @@
 builds:
   -
+    ldflags:
+      - -s -w -X github.com/akiomik/vimeo-dl/config.Version={{ .Version }}
     goos:
       - darwin
       - linux
