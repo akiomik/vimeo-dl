@@ -68,6 +68,8 @@ Flags:
 
 ## Install
 
+Installing or building from source requires the Go version specified in [.go-version](.go-version) or newer.
+
 ### Pre-compiled binaries
 
 Currently, Windows, macOS and linux are supported.
@@ -78,11 +80,7 @@ Currently, Windows, macOS and linux are supported.
 ### go install
 
 ```sh
-# go <1.6
-go get -u github.com/akiomik/vimeo-dl
-
-# go >=1.6
-go install github.com/akiomik/vimeo-dl
+go install github.com/akiomik/vimeo-dl@latest
 ```
 
 ## Build
