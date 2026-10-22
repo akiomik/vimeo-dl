@@ -68,25 +68,22 @@ Flags:
 
 ## Install
 
+Installing or building from source requires the Go version specified in [.go-version](.go-version) or newer.
+
 ### Pre-compiled binaries
 
 Currently, Windows, macOS and linux are supported.
-Releases built with Go 1.27 require macOS 13 or newer.
 
 - Download the latest release from [the release page](https://github.com/akiomik/vimeo-dl/releases/latest).
 - Extract the downloaded `.tar.gz` file.
 
 ### go install
 
-Go 1.27.3 or newer is required.
-
 ```sh
 go install github.com/akiomik/vimeo-dl@latest
 ```
 
 ## Build
-
-Go 1.27.3 or newer is required.
 
 ```sh
 make build
