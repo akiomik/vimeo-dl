@@ -46,6 +46,45 @@ func TestSyntheticManifestPreflight(t *testing.T) {
 	}
 }
 
+func TestSegmentDownloadSizeAcceptsBothRangeSizeConventions(t *testing.T) {
+	resourceURL, _ := url.Parse("https://media.example.invalid/segment.mp4?range=10-19")
+	for _, size := range []int64{9, 10} {
+		actual, err := segmentDownloadSize(Segment{Size: size}, resourceURL)
+		if err != nil || actual != 10 {
+			t.Errorf("size %d: download size = %d, error = %v; want 10", size, actual, err)
+		}
+	}
+}
+
+func TestManifestPreflightRejectsUnboundedOrInconsistentSegments(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("testdata", "master-ranged.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifestURL, _ := url.Parse("https://media.example.invalid/manifest/master.json")
+	for _, tc := range []struct {
+		name   string
+		change func(*MasterJson)
+		want   string
+	}{
+		{"missing size", func(m *MasterJson) { m.Video[0].Segments[0].Size = 0 }, "size is missing"},
+		{"range mismatch", func(m *MasterJson) { m.Audio[0].Segments[0].Size = 1 }, "size does not match byte range"},
+		{"malformed range", func(m *MasterJson) { m.Audio[0].Segments[0].Url = "sample.mp4?range=0-" }, "byte range must be start-end"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var manifest MasterJson
+			if err := json.Unmarshal(data, &manifest); err != nil {
+				t.Fatal(err)
+			}
+			tc.change(&manifest)
+			err := manifest.ValidateForDownload(manifestURL, "synthetic-video", "synthetic-audio", true)
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("preflight error = %v, want %q", err, tc.want)
+			}
+		})
+	}
+}
+
 func TestManifestHTTPResponses(t *testing.T) {
 	htmlResponse, err := os.ReadFile(filepath.Join("testdata", "html-response.html"))
 	if err != nil {

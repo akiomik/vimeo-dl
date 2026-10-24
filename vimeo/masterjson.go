@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"strconv"
+	"strings"
 )
 
 type Segment struct {
@@ -214,6 +216,54 @@ func validateDistinctSegmentURLs(urls []*url.URL) error {
 	return nil
 }
 
+// segmentDownloadSize accounts for Vimeo manifests that report the difference
+// between range endpoints while the CDN serves both endpoints inclusively.
+func segmentDownloadSize(segment Segment, resourceURL *url.URL) (int64, error) {
+	if segment.Size < 0 {
+		return 0, errors.New("negative size")
+	}
+	const maxInt64 = int64(1<<63 - 1)
+	ranges, hasRange := resourceURL.Query()["range"]
+	if !hasRange {
+		if segment.Size == 0 {
+			return 0, errors.New("size is missing and URL has no byte range")
+		}
+		if segment.Size == maxInt64 {
+			return 0, errors.New("size is too large")
+		}
+		return segment.Size, nil
+	}
+	if len(ranges) != 1 {
+		return 0, errors.New("byte range must have exactly one value")
+	}
+	startText, endText, ok := strings.Cut(ranges[0], "-")
+	if !ok || startText == "" || endText == "" {
+		return 0, errors.New("byte range must be start-end")
+	}
+	start, startErr := strconv.ParseInt(startText, 10, 64)
+	end, endErr := strconv.ParseInt(endText, 10, 64)
+	if startErr != nil || endErr != nil || start < 0 || end < start || end-start >= maxInt64-1 {
+		return 0, errors.New("byte range is invalid or too large")
+	}
+	inclusiveSize := end - start + 1
+	if segment.Size != inclusiveSize && segment.Size != inclusiveSize-1 {
+		return 0, errors.New("size does not match byte range")
+	}
+	return inclusiveSize, nil
+}
+
+func segmentDownloadSizes(segments []Segment, urls []*url.URL, kind string) ([]int64, error) {
+	sizes := make([]int64, len(segments))
+	for i, segment := range segments {
+		size, err := segmentDownloadSize(segment, urls[i])
+		if err != nil {
+			return nil, fmt.Errorf("%s segment %d: %w", kind, i+1, err)
+		}
+		sizes[i] = size
+	}
+	return sizes, nil
+}
+
 // ValidateForDownload checks the selected tracks before any output file is made.
 func (mj *MasterJson) ValidateForDownload(masterJsonUrl *url.URL, videoID, audioID string, includeAudio bool) error {
 	video, err := mj.FindVideo(videoID)
@@ -223,11 +273,6 @@ func (mj *MasterJson) ValidateForDownload(masterJsonUrl *url.URL, videoID, audio
 	if len(video.Segments) == 0 {
 		return errors.New("selected video has no segments")
 	}
-	for i, segment := range video.Segments {
-		if segment.Size < 0 {
-			return fmt.Errorf("video segment %d has a negative size", i+1)
-		}
-	}
 	videoInit, err := video.DecodedInitSegment()
 	if err != nil {
 		return fmt.Errorf("video init_segment is not base64; obtain a manifest with base64_init=1: %w", err)
@@ -235,8 +280,12 @@ func (mj *MasterJson) ValidateForDownload(masterJsonUrl *url.URL, videoID, audio
 	if len(videoInit) == 0 {
 		return errors.New("selected video has no init_segment")
 	}
-	if _, err := mj.VideoSegmentUrls(masterJsonUrl, videoID); err != nil {
+	videoURLs, err := mj.VideoSegmentUrls(masterJsonUrl, videoID)
+	if err != nil {
 		return fmt.Errorf("video segments are not downloadable: %w", err)
+	}
+	if _, err := segmentDownloadSizes(video.Segments, videoURLs, "video"); err != nil {
+		return err
 	}
 	if !includeAudio {
 		return nil
@@ -248,11 +297,6 @@ func (mj *MasterJson) ValidateForDownload(masterJsonUrl *url.URL, videoID, audio
 	if len(audio.Segments) == 0 {
 		return errors.New("selected audio has no segments")
 	}
-	for i, segment := range audio.Segments {
-		if segment.Size < 0 {
-			return fmt.Errorf("audio segment %d has a negative size", i+1)
-		}
-	}
 	audioInit, err := audio.DecodedInitSegment()
 	if err != nil {
 		return fmt.Errorf("audio init_segment is not base64; obtain a manifest with base64_init=1: %w", err)
@@ -260,8 +304,12 @@ func (mj *MasterJson) ValidateForDownload(masterJsonUrl *url.URL, videoID, audio
 	if len(audioInit) == 0 {
 		return errors.New("selected audio has no init_segment")
 	}
-	if _, err := mj.AudioSegmentUrls(masterJsonUrl, audioID); err != nil {
+	audioURLs, err := mj.AudioSegmentUrls(masterJsonUrl, audioID)
+	if err != nil {
 		return fmt.Errorf("audio segments are not downloadable: %w", err)
+	}
+	if _, err := segmentDownloadSizes(audio.Segments, audioURLs, "audio"); err != nil {
+		return err
 	}
 	return nil
 }
@@ -280,6 +328,10 @@ func (mj *MasterJson) CreateVideoFile(output io.Writer, masterJsonUrl *url.URL, 
 	if err != nil {
 		return err
 	}
+	videoSizes, err := segmentDownloadSizes(video.Segments, videoSegmentUrls, "video")
+	if err != nil {
+		return err
+	}
 
 	if written, err := output.Write(initSegment); err != nil {
 		return err
@@ -288,7 +340,7 @@ func (mj *MasterJson) CreateVideoFile(output io.Writer, masterJsonUrl *url.URL, 
 	}
 
 	for i, videoSegmentUrl := range videoSegmentUrls {
-		err = client.DownloadSized(videoSegmentUrl, output, video.Segments[i].Size)
+		err = client.DownloadSized(videoSegmentUrl, output, videoSizes[i])
 		if err != nil {
 			return err
 		}
@@ -311,6 +363,10 @@ func (mj *MasterJson) CreateAudioFile(output io.Writer, masterJsonUrl *url.URL, 
 	if err != nil {
 		return err
 	}
+	audioSizes, err := segmentDownloadSizes(audio.Segments, audioSegmentUrls, "audio")
+	if err != nil {
+		return err
+	}
 
 	if written, err := output.Write(initSegment); err != nil {
 		return err
@@ -319,7 +375,7 @@ func (mj *MasterJson) CreateAudioFile(output io.Writer, masterJsonUrl *url.URL, 
 	}
 
 	for i, audioSegmentUrl := range audioSegmentUrls {
-		err = client.DownloadSized(audioSegmentUrl, output, audio.Segments[i].Size)
+		err = client.DownloadSized(audioSegmentUrl, output, audioSizes[i])
 		if err != nil {
 			return err
 		}

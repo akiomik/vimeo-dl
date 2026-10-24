@@ -12,7 +12,8 @@ decode to short non-media byte sequences.
   the same MP4 resource.
 - `master-ranged.json` models the corresponding
   `base64_init=1&query_string_ranges=1` form, where DASH audio segments have
-  distinct query-string byte ranges.
+  distinct query-string byte ranges. Its invented `size` values use Vimeo's
+  endpoint-difference convention, one less than the inclusive response size.
 - `playlist-segments.json` models a manifest whose segments are separate `.m4s`
   requests. Its `pathsig` values are the literal placeholder `synthetic-only`.
 - `html-response.html` is a made-up HTML response for testing manifest fetch
