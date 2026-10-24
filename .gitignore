@@ -16,3 +16,9 @@
 vimeo-dl
 
 downloads/
+
+# Locally captured private Vimeo manifests
+/json/
+
+# Local investigation notes; may describe private playback behavior
+/tmp/

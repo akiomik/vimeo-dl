@@ -3,19 +3,28 @@ vimeo-dl
 
 [![Go](https://github.com/akiomik/vimeo-dl/actions/workflows/go.yml/badge.svg)](https://github.com/akiomik/vimeo-dl/actions/workflows/go.yml)
 
-A tool to download private videos on vimeo.
+A tool to download Vimeo videos when you have access to their JSON playback
+manifest.
 
 ## Usage
 
 ```sh
-vimeo-dl --combine -i ${MASTER_JSON_URL}
+vimeo-dl --combine -i "${MASTER_JSON_URL}"
 ```
+
+The input must be a `master.json` or `playlist.json` playback manifest URL,
+including any signed query string. A Vimeo video page URL or an HLS `.m3u8`
+URL cannot be used as input. If the JSON manifest uses path-like init segments,
+request it with `base64_init=1`. If multiple segments resolve to the same media
+URL, request it with `query_string_ranges=1`. Quote the URL in the shell so `&`
+stays inside the argument. Signed manifest URLs can expire; obtain a fresh one
+if the request returns an HTTP error. The tool does not print signed media URLs.
 
 ## Advanced Usage
 
 ```sh
 # Download a video as ${clip_id}-video.mp4 (1080p).
-# The highest resolution is automatically selected.
+# The highest bitrate track is automatically selected.
 vimeo-dl -i "https://skyfire.vimeocdn.com/xxx/yyy/live-archive/video/240p,360p,540p,720p,1080p/master.json?base64_init=1&query_string_ranges=1"
 ```
 
@@ -59,7 +68,7 @@ Flags:
       --audio-id string           audio id
       --combine                   combine video and audio into a single mp4 (ffmpeg is required)
   -h, --help                      help for vimeo-dl
-  -i, --input string              url for master.json (required)
+  -i, --input string              url for master.json or playlist.json (required)
   -o, --output-file-name string   output file name
       --user-agent string         user-agent for request
   -v, --version                   version for vimeo-dl

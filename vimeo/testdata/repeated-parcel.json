@@ -1,0 +1,30 @@
+{
+  "clip_id": "synthetic-repeated-parcel",
+  "base_url": "../../../parcel/",
+  "video": [
+    {
+      "id": "synthetic-video",
+      "base_url": "video/",
+      "format": "mp42",
+      "bitrate": 800000,
+      "init_segment": "AAECAw==",
+      "segments": [
+        { "start": 0, "end": 2, "url": "segment-1.m4s", "size": 4 },
+        { "start": 2, "end": 4, "url": "segment-2.m4s", "size": 4 }
+      ]
+    }
+  ],
+  "audio": [
+    {
+      "id": "synthetic-audio",
+      "base_url": "audio/sample.mp4",
+      "format": "dash",
+      "bitrate": 96000,
+      "init_segment": "BAUGBw==",
+      "segments": [
+        { "start": 0, "end": 2, "url": "", "size": 4 },
+        { "start": 2, "end": 4, "url": "", "size": 4 }
+      ]
+    }
+  ]
+}
