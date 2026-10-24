@@ -70,16 +70,16 @@ Usage:
   vimeo-dl [flags]
 
 Flags:
-      --audio-id string           audio id
-      --combine                   combine video and audio into a single mp4 (ffmpeg is required)
-      --ffmpeg-path string        path to the ffmpeg executable for --combine
-  -h, --help                      help for vimeo-dl
-  -i, --input string              url for master.json or playlist.json (required)
-  -o, --output-file-name string   output file name
-      --request-timeout duration  maximum duration of each HTTP request (0 disables) (default 30m0s)
-      --user-agent string         user-agent for request
-  -v, --version                   version for vimeo-dl
-      --video-id string           video id
+      --audio-id string            audio id
+      --combine                    combine video and audio into a single mp4 (ffmpeg is required)
+      --ffmpeg-path string         path to the ffmpeg executable for --combine
+  -h, --help                       help for vimeo-dl
+  -i, --input string               url for master.json or playlist.json (required)
+  -o, --output-file-name string    output file name
+      --request-timeout duration   maximum duration of each HTTP request (0 disables) (default 30m0s)
+      --user-agent string          user-agent for request
+  -v, --version                    version for vimeo-dl
+      --video-id string            video id
 ```
 
 Go does not run `ffmpeg` when it is found implicitly in the current directory.
