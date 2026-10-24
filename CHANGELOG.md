@@ -10,6 +10,7 @@ For `0.x.y` releases, `x` increases for breaking changes, while `y` increases fo
 
 ### Fixed
 
+- Handle the inclusive length of range-qualified JSON segments and reject missing or inconsistent segment sizes before downloading.
 - Report HTTP and HTML responses clearly when a JSON manifest or media segment cannot be fetched.
 - Reject repeated segment URLs and invalid initialization data before downloading, with guidance for the required manifest query parameters.
 - Verify known segment sizes and resolve segment URLs against the final manifest URL after redirects.
