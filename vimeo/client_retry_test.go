@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 )
 
 func TestDownloadSizedRetriesTruncatedSegmentWithoutDuplicateBytes(t *testing.T) {
@@ -199,5 +200,47 @@ func TestDownloadSizedDoesNotRetryAccessDenial(t *testing.T) {
 	}
 	if output.Len() != 0 {
 		t.Fatalf("access denial wrote %d bytes", output.Len())
+	}
+}
+
+func TestManifestRequestTimeout(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"clip_id":"synthetic"`))
+		w.(http.Flusher).Flush()
+		<-r.Context().Done()
+	}))
+	defer server.Close()
+	resourceURL, _ := url.Parse(server.URL + "/master.json?token=private")
+	client := NewClient()
+	client.Client.Timeout = 50 * time.Millisecond
+	_, err := client.GetMasterJsonContext(context.Background(), resourceURL)
+	if !errors.Is(err, context.DeadlineExceeded) || strings.Contains(err.Error(), "token=private") {
+		t.Fatalf("timeout error = %v, want redacted deadline", err)
+	}
+}
+
+type cancelingOutput struct {
+	bytes.Buffer
+	cancel context.CancelFunc
+}
+
+func (output *cancelingOutput) Write(data []byte) (int, error) {
+	written, err := output.Buffer.Write(data)
+	output.cancel()
+	return written, err
+}
+
+func TestDownloadSizedContextReportsCancellationDuringPublish(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("ABCD"))
+	}))
+	defer server.Close()
+	resourceURL, _ := url.Parse(server.URL + "/segment.m4s")
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	output := &cancelingOutput{cancel: cancel}
+	err := NewClient().DownloadSizedContext(ctx, resourceURL, output, 4)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("download error = %v, want cancellation during output publication", err)
 	}
 }

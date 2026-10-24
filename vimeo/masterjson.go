@@ -15,6 +15,7 @@
 package vimeo
 
 import (
+	"context"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -315,6 +316,10 @@ func (mj *MasterJson) ValidateForDownload(masterJsonUrl *url.URL, videoID, audio
 }
 
 func (mj *MasterJson) CreateVideoFile(output io.Writer, masterJsonUrl *url.URL, id string, client *Client) error {
+	return mj.CreateVideoFileContext(context.Background(), output, masterJsonUrl, id, client)
+}
+
+func (mj *MasterJson) CreateVideoFileContext(ctx context.Context, output io.Writer, masterJsonUrl *url.URL, id string, client *Client) error {
 	video, err := mj.FindVideo(id)
 	if err != nil {
 		return err
@@ -340,16 +345,20 @@ func (mj *MasterJson) CreateVideoFile(output io.Writer, masterJsonUrl *url.URL, 
 	}
 
 	for i, videoSegmentUrl := range videoSegmentUrls {
-		err = client.DownloadSized(videoSegmentUrl, output, videoSizes[i])
+		err = client.DownloadSizedContext(ctx, videoSegmentUrl, output, videoSizes[i])
 		if err != nil {
 			return err
 		}
 	}
 
-	return nil
+	return ctx.Err()
 }
 
 func (mj *MasterJson) CreateAudioFile(output io.Writer, masterJsonUrl *url.URL, id string, client *Client) error {
+	return mj.CreateAudioFileContext(context.Background(), output, masterJsonUrl, id, client)
+}
+
+func (mj *MasterJson) CreateAudioFileContext(ctx context.Context, output io.Writer, masterJsonUrl *url.URL, id string, client *Client) error {
 	audio, err := mj.FindAudio(id)
 	if err != nil {
 		return err
@@ -375,11 +384,11 @@ func (mj *MasterJson) CreateAudioFile(output io.Writer, masterJsonUrl *url.URL, 
 	}
 
 	for i, audioSegmentUrl := range audioSegmentUrls {
-		err = client.DownloadSized(audioSegmentUrl, output, audioSizes[i])
+		err = client.DownloadSizedContext(ctx, audioSegmentUrl, output, audioSizes[i])
 		if err != nil {
 			return err
 		}
 	}
 
-	return nil
+	return ctx.Err()
 }

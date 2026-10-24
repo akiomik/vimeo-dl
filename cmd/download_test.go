@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -11,6 +12,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 )
 
 func fixture(t *testing.T, name string) []byte {
@@ -31,6 +33,49 @@ func assertNoOutputOrTemp(t *testing.T, directory string) {
 	if len(entries) != 0 {
 		t.Fatalf("failed download left output files: %v", entries)
 	}
+}
+
+func TestRunDownloadContextCancelsAndCleansStaging(t *testing.T) {
+	manifest := fixture(t, "master-ranged.json")
+	segmentStarted := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/manifest/master.json":
+			w.Write(manifest)
+		case "/parcel/video/segment-1.m4s":
+			w.Write([]byte("V0"))
+			w.(http.Flusher).Flush()
+			close(segmentStarted)
+			<-r.Context().Done()
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+	directory := t.TempDir()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() {
+		done <- runDownloadContext(ctx, downloadOptions{
+			Input: server.URL + "/manifest/master.json", OutputFilename: filepath.Join(directory, "result"),
+		})
+	}()
+	select {
+	case <-segmentStarted:
+	case <-time.After(5 * time.Second):
+		t.Fatal("segment download did not start")
+	}
+	cancel()
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("download error = %v, want cancellation", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("download did not stop after cancellation")
+	}
+	assertNoOutputOrTemp(t, directory)
 }
 
 func TestRunDownloadRecoversAfterAudioFailure(t *testing.T) {
@@ -273,5 +318,35 @@ func TestPublishFilesRollbackPreservesExistingFile(t *testing.T) {
 				t.Fatalf("existing output changed: bytes=%q, err=%v", got, err)
 			}
 		})
+	}
+}
+
+func TestPublishFilesRollsBackOnCancellation(t *testing.T) {
+	directory := t.TempDir()
+	firstTemp := filepath.Join(directory, "first-staged.mp4")
+	secondTemp := filepath.Join(directory, "second-staged.mp4")
+	firstFinal := filepath.Join(directory, "first.mp4")
+	secondFinal := filepath.Join(directory, "second.mp4")
+	for _, path := range []string{firstTemp, secondTemp} {
+		if err := os.WriteFile(path, []byte("synthetic media"), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	link := func(source, destination string) error {
+		err := os.Link(source, destination)
+		cancel()
+		return err
+	}
+	err := publishFilesWithLinkContext(ctx, link,
+		stagedFile{firstTemp, firstFinal}, stagedFile{secondTemp, secondFinal})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("publish error = %v, want cancellation", err)
+	}
+	for _, path := range []string{firstFinal, secondFinal} {
+		if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("canceled publish left %s: %v", path, err)
+		}
 	}
 }

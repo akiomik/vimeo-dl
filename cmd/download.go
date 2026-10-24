@@ -15,6 +15,7 @@
 package cmd
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -24,6 +25,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/akiomik/vimeo-dl/vimeo"
 )
@@ -36,6 +38,7 @@ type downloadOptions struct {
 	FFmpegPath     string
 	OutputFilename string
 	Combine        bool
+	RequestTimeout *time.Duration
 }
 
 type stagedFile struct {
@@ -49,6 +52,16 @@ type publishedFile struct {
 }
 
 func runDownload(options downloadOptions) error {
+	return runDownloadContext(context.Background(), options)
+}
+
+func runDownloadContext(ctx context.Context, options downloadOptions) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if options.RequestTimeout != nil && *options.RequestTimeout < 0 {
+		return errors.New("--request-timeout must not be negative")
+	}
 	if strings.Contains(options.Input, `\u0026`) {
 		return errors.New("input URL contains a literal \\u0026; copy the decoded URL and quote it in the shell")
 	}
@@ -61,10 +74,13 @@ func runDownload(options downloadOptions) error {
 	}
 
 	client := vimeo.NewClient()
+	if options.RequestTimeout != nil {
+		client.Client.Timeout = *options.RequestTimeout
+	}
 	if options.UserAgent != "" {
 		client.UserAgent = options.UserAgent
 	}
-	manifest, err := client.GetMasterJson(manifestURL)
+	manifest, err := client.GetMasterJsonContext(ctx, manifestURL)
 	if err != nil {
 		return err
 	}
@@ -112,7 +128,7 @@ func runDownload(options downloadOptions) error {
 
 	var ffmpegPath string
 	if options.Combine {
-		ffmpegPath, err = findFFmpeg(options.FFmpegPath)
+		ffmpegPath, err = findFFmpegContext(ctx, options.FFmpegPath)
 		if err != nil {
 			return err
 		}
@@ -125,32 +141,41 @@ func runDownload(options downloadOptions) error {
 
 	fmt.Println("Downloading video")
 	videoTemp, err := downloadToTemp(stagingDirectory, func(output io.Writer) error {
-		return manifest.CreateVideoFile(output, manifestURL, selectedVideoID, client)
+		return manifest.CreateVideoFileContext(ctx, output, manifestURL, selectedVideoID, client)
 	})
 	if err != nil {
 		return err
 	}
 	if !includeAudio {
-		return publishFiles(stagedFile{videoTemp, videoFinal})
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		return publishFilesContext(ctx, stagedFile{videoTemp, videoFinal})
 	}
 	fmt.Println("Downloading audio")
 	audioTemp, err := downloadToTemp(stagingDirectory, func(output io.Writer) error {
-		return manifest.CreateAudioFile(output, manifestURL, selectedAudioID, client)
+		return manifest.CreateAudioFileContext(ctx, output, manifestURL, selectedAudioID, client)
 	})
 	if err != nil {
 		return err
 	}
 	if !options.Combine {
-		return publishFiles(stagedFile{videoTemp, videoFinal}, stagedFile{audioTemp, audioFinal})
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		return publishFilesContext(ctx, stagedFile{videoTemp, videoFinal}, stagedFile{audioTemp, audioFinal})
 	}
 	combinedTemp, err := reserveTemp(stagingDirectory)
 	if err != nil {
 		return err
 	}
-	if err := combineVideoAndAudio(ffmpegPath, videoTemp, audioTemp, combinedTemp); err != nil {
+	if err := combineVideoAndAudioContext(ctx, ffmpegPath, videoTemp, audioTemp, combinedTemp); err != nil {
 		return err
 	}
-	return publishFiles(stagedFile{combinedTemp, combinedFinal})
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return publishFilesContext(ctx, stagedFile{combinedTemp, combinedFinal})
 }
 
 func ensureAbsent(filename string) error {
@@ -200,26 +225,41 @@ func reserveTemp(directory string) (string, error) {
 	return file.Name(), nil
 }
 
-func publishFiles(files ...stagedFile) error {
-	return publishFilesWithLink(os.Link, files...)
+func publishFilesContext(ctx context.Context, files ...stagedFile) error {
+	return publishFilesWithLinkContext(ctx, os.Link, files...)
 }
 
 func publishFilesWithLink(link func(string, string) error, files ...stagedFile) error {
+	return publishFilesWithLinkContext(context.Background(), link, files...)
+}
+
+func publishFilesWithLinkContext(ctx context.Context, link func(string, string) error, files ...stagedFile) error {
 	created := make([]publishedFile, 0, len(files))
+	rollback := func() {
+		for _, previous := range created {
+			removeIfUnchanged(previous)
+		}
+	}
 	for _, file := range files {
-		published, err := publishFile(link, file)
+		if err := ctx.Err(); err != nil {
+			rollback()
+			return err
+		}
+		published, err := publishFileContext(ctx, link, file)
 		if err != nil {
-			for _, previous := range created {
-				removeIfUnchanged(previous)
-			}
+			rollback()
 			return fmt.Errorf("publishing %s failed: %w", file.final, err)
 		}
 		created = append(created, published)
 	}
+	if err := ctx.Err(); err != nil {
+		rollback()
+		return err
+	}
 	return nil
 }
 
-func publishFile(link func(string, string) error, file stagedFile) (publishedFile, error) {
+func publishFileContext(ctx context.Context, link func(string, string) error, file stagedFile) (publishedFile, error) {
 	temporaryInfo, err := os.Stat(file.temporary)
 	if err != nil {
 		return publishedFile{}, err
@@ -245,7 +285,7 @@ func publishFile(link func(string, string) error, file stagedFile) (publishedFil
 		return publishedFile{}, statErr
 	}
 	published := publishedFile{file.final, info}
-	_, copyErr := io.Copy(destination, source)
+	_, copyErr := io.Copy(destination, &cancelableReader{ctx: ctx, input: source})
 	closeErr := destination.Close()
 	if copyErr != nil {
 		removeIfUnchanged(published)
@@ -258,6 +298,18 @@ func publishFile(link func(string, string) error, file stagedFile) (publishedFil
 	return published, nil
 }
 
+type cancelableReader struct {
+	ctx   context.Context
+	input io.Reader
+}
+
+func (r *cancelableReader) Read(data []byte) (int, error) {
+	if err := r.ctx.Err(); err != nil {
+		return 0, err
+	}
+	return r.input.Read(data)
+}
+
 func removeIfUnchanged(file publishedFile) {
 	current, err := os.Stat(file.path)
 	if err == nil && os.SameFile(file.info, current) {
@@ -266,6 +318,10 @@ func removeIfUnchanged(file publishedFile) {
 }
 
 func findFFmpeg(configuredPath string) (string, error) {
+	return findFFmpegContext(context.Background(), configuredPath)
+}
+
+func findFFmpegContext(ctx context.Context, configuredPath string) (string, error) {
 	var path string
 	var err error
 	if configuredPath != "" {
@@ -282,7 +338,12 @@ func findFFmpeg(configuredPath string) (string, error) {
 			return "", fmt.Errorf("ffmpeg is required for --combine: %w", err)
 		}
 	}
-	if err := exec.Command(path, "-version").Run(); err != nil {
+	checkCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	if err := exec.CommandContext(checkCtx, path, "-version").Run(); err != nil {
+		if checkCtx.Err() != nil {
+			return "", fmt.Errorf("ffmpeg version check stopped: %w", checkCtx.Err())
+		}
 		return "", fmt.Errorf("ffmpeg cannot run: %w", err)
 	}
 	return path, nil
@@ -318,13 +379,21 @@ func (o *ffmpegErrorOutput) String() string {
 }
 
 func combineVideoAndAudio(ffmpegPath, videoFilename, audioFilename, outputFilename string) error {
-	command := exec.Command(ffmpegPath, "-nostdin", "-y", "-loglevel", "error",
+	return combineVideoAndAudioContext(context.Background(), ffmpegPath, videoFilename, audioFilename, outputFilename)
+}
+
+func combineVideoAndAudioContext(ctx context.Context, ffmpegPath, videoFilename, audioFilename, outputFilename string) error {
+	command := exec.CommandContext(ctx, ffmpegPath, "-nostdin", "-y", "-loglevel", "error",
 		"-i", videoFilename, "-i", audioFilename,
 		"-map", "0:v:0", "-map", "1:a:0", "-c", "copy", outputFilename)
+	command.WaitDelay = 5 * time.Second
 	output := new(ffmpegErrorOutput)
 	command.Stdout = output
 	command.Stderr = output
 	if err := command.Run(); err != nil {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
 		return fmt.Errorf("ffmpeg failed: %w: %s", err, strings.TrimSpace(output.String()))
 	}
 	info, err := os.Stat(outputFilename)

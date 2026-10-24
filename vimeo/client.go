@@ -37,6 +37,8 @@ import (
 const (
 	maxManifestBytes   = 64 << 20
 	maxSegmentAttempts = 3
+	// DefaultRequestTimeout bounds a single manifest or segment request, including its body.
+	DefaultRequestTimeout = 30 * time.Minute
 )
 
 // RequestError keeps the original error available to callers without putting
@@ -67,19 +69,17 @@ type Client struct {
 }
 
 func NewClient() *Client {
-	client := Client{}
-	client.Client = http.DefaultClient
-	client.UserAgent = "vimeo-dl/" + config.Version
-
-	return &client
+	httpClient := *http.DefaultClient
+	httpClient.Timeout = DefaultRequestTimeout
+	return &Client{Client: &httpClient, UserAgent: "vimeo-dl/" + config.Version}
 }
 
-func (c *Client) get(resourceURL *url.URL) (*http.Response, error) {
+func (c *Client) get(ctx context.Context, resourceURL *url.URL) (*http.Response, error) {
 	if resourceURL == nil || (resourceURL.Scheme != "http" && resourceURL.Scheme != "https") || resourceURL.Host == "" {
 		return nil, errors.New("input must be an absolute HTTP or HTTPS URL")
 	}
 
-	req, err := http.NewRequest("GET", resourceURL.String(), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, resourceURL.String(), nil)
 	if err != nil {
 		return nil, errors.New("invalid HTTP URL")
 	}
@@ -87,6 +87,9 @@ func (c *Client) get(resourceURL *url.URL) (*http.Response, error) {
 
 	res, err := c.Client.Do(req)
 	if err != nil {
+		if ctx.Err() != nil {
+			err = ctx.Err()
+		}
 		return nil, &RequestError{Err: err}
 	}
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
@@ -98,7 +101,11 @@ func (c *Client) get(resourceURL *url.URL) (*http.Response, error) {
 }
 
 func (c *Client) GetMasterJson(resourceURL *url.URL) (*MasterJson, error) {
-	res, err := c.get(resourceURL)
+	return c.GetMasterJsonContext(context.Background(), resourceURL)
+}
+
+func (c *Client) GetMasterJsonContext(ctx context.Context, resourceURL *url.URL) (*MasterJson, error) {
+	res, err := c.get(ctx, resourceURL)
 	if err != nil {
 		return nil, fmt.Errorf("manifest request failed: %w", err)
 	}
@@ -109,6 +116,9 @@ func (c *Client) GetMasterJson(resourceURL *url.URL) (*MasterJson, error) {
 	}
 	jsonBlob, err := io.ReadAll(io.LimitReader(res.Body, maxManifestBytes+1))
 	if err != nil {
+		if ctx.Err() != nil {
+			err = ctx.Err()
+		}
 		return nil, fmt.Errorf("reading manifest failed: %w", err)
 	}
 	if len(jsonBlob) > maxManifestBytes {
@@ -134,15 +144,23 @@ func (c *Client) GetMasterJson(resourceURL *url.URL) (*MasterJson, error) {
 }
 
 func (c *Client) Download(resourceURL *url.URL, output io.Writer) error {
-	return c.DownloadSized(resourceURL, output, 0)
+	return c.DownloadContext(context.Background(), resourceURL, output)
+}
+
+func (c *Client) DownloadContext(ctx context.Context, resourceURL *url.URL, output io.Writer) error {
+	return c.DownloadSizedContext(ctx, resourceURL, output, 0)
 }
 
 func (c *Client) DownloadSized(resourceURL *url.URL, output io.Writer, expectedSize int64) error {
+	return c.DownloadSizedContext(context.Background(), resourceURL, output, expectedSize)
+}
+
+func (c *Client) DownloadSizedContext(ctx context.Context, resourceURL *url.URL, output io.Writer, expectedSize int64) error {
 	if expectedSize < 0 || expectedSize == int64(1<<63-1) {
 		return errors.New("segment size is invalid or too large")
 	}
 	if expectedSize == 0 {
-		_, err := c.downloadSegmentOnce(resourceURL, output, 0)
+		_, err := c.downloadSegmentOnce(ctx, resourceURL, output, 0)
 		return err
 	}
 
@@ -200,12 +218,21 @@ func (c *Client) DownloadSized(resourceURL *url.URL, output io.Writer, expectedS
 		if err := reset(); err != nil {
 			return fmt.Errorf("resetting segment staging file failed: %w", err)
 		}
-		retryable, err := c.downloadSegmentOnce(resourceURL, staged, expectedSize)
+		retryable, err := c.downloadSegmentOnce(ctx, resourceURL, staged, expectedSize)
 		if err == nil {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
 			if err := publish(); err != nil {
 				return fmt.Errorf("writing completed segment failed: %w", err)
 			}
+			if err := ctx.Err(); err != nil {
+				return err
+			}
 			return nil
+		}
+		if ctx.Err() != nil {
+			return ctx.Err()
 		}
 		if !retryable || attempt == maxSegmentAttempts {
 			if attempt > 1 {
@@ -213,7 +240,13 @@ func (c *Client) DownloadSized(resourceURL *url.URL, output io.Writer, expectedS
 			}
 			return err
 		}
-		time.Sleep(time.Duration(attempt) * 100 * time.Millisecond)
+		timer := time.NewTimer(time.Duration(attempt) * 100 * time.Millisecond)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return ctx.Err()
+		case <-timer.C:
+		}
 	}
 	return errors.New("segment retry limit reached")
 }
@@ -234,11 +267,11 @@ func (w *writeErrorRecorder) Write(data []byte) (int, error) {
 }
 
 // downloadSegmentOnce reports whether a failed attempt can be retried safely.
-func (c *Client) downloadSegmentOnce(resourceURL *url.URL, output io.Writer, expectedSize int64) (bool, error) {
-	res, err := c.get(resourceURL)
+func (c *Client) downloadSegmentOnce(ctx context.Context, resourceURL *url.URL, output io.Writer, expectedSize int64) (bool, error) {
+	res, err := c.get(ctx, resourceURL)
 	if err != nil {
 		var requestErr *RequestError
-		return errors.As(err, &requestErr) && !errors.Is(err, context.Canceled), fmt.Errorf("segment request failed: %w", err)
+		return errors.As(err, &requestErr) && ctx.Err() == nil && !errors.Is(err, context.Canceled), fmt.Errorf("segment request failed: %w", err)
 	}
 	defer res.Body.Close()
 	if isHTML(res.Header.Get("Content-Type")) {
@@ -257,7 +290,13 @@ func (c *Client) downloadSegmentOnce(resourceURL *url.URL, output io.Writer, exp
 	recorder := &writeErrorRecorder{output: output}
 	written, err := io.Copy(recorder, body)
 	if err != nil {
-		return recorder.err == nil && !errors.Is(err, context.Canceled), fmt.Errorf("segment download failed: %w", err)
+		if ctx.Err() != nil {
+			return false, fmt.Errorf("segment download failed: %w", ctx.Err())
+		}
+		return recorder.err == nil && ctx.Err() == nil && !errors.Is(err, context.Canceled), fmt.Errorf("segment download failed: %w", err)
+	}
+	if err := ctx.Err(); err != nil {
+		return false, err
 	}
 	if expectedSize > 0 && written != expectedSize {
 		return written < expectedSize, fmt.Errorf("segment size mismatch: expected %d bytes, received %d", expectedSize, written)
