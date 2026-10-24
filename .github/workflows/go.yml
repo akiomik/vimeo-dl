@@ -8,8 +8,8 @@ on:
 
 jobs:
 
-  build:
-    name: CI
+  linux:
+    name: Linux
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v7
@@ -35,3 +35,17 @@ jobs:
         check-latest: true
     - run: go build ./...
     - run: go test ./...
+
+  build:
+    name: CI
+    needs: [linux, windows]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+    - name: Require both platforms
+      env:
+        LINUX_RESULT: ${{ needs.linux.result }}
+        WINDOWS_RESULT: ${{ needs.windows.result }}
+      run: |
+        test "$LINUX_RESULT" = success
+        test "$WINDOWS_RESULT" = success
