@@ -8,6 +8,8 @@ For `0.x.y` releases, `x` increases for breaking changes, while `y` increases fo
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-10-24
+
 ### Fixed
 
 - Allow `--combine` to use an explicitly selected FFmpeg executable when current-directory lookup is rejected.
@@ -23,6 +25,11 @@ For `0.x.y` releases, `x` increases for breaking changes, while `y` increases fo
 
 - Keep downloaded media owner-only on POSIX filesystems and omit signed media URLs from progress and request error messages.
 - Exclude local private captures from Git and Docker build contexts.
+
+### Known limitations
+
+- An authorized `master.json` or `playlist.json` URL is still required; Vimeo video pages and HLS `.m3u8` URLs are not supported inputs.
+- Browser-versus-CLI access differences for some signed JSON manifests remain under investigation in [#65](https://github.com/akiomik/vimeo-dl/issues/65).
 
 ## [0.3.0] - 2026-10-22
 
@@ -95,7 +102,8 @@ For `0.x.y` releases, `x` increases for breaking changes, while `y` increases fo
 
 - Initial release of the Vimeo video downloader.
 
-[Unreleased]: https://github.com/akiomik/vimeo-dl/compare/v0.3.0...main
+[Unreleased]: https://github.com/akiomik/vimeo-dl/compare/v0.3.1...main
+[0.3.1]: https://github.com/akiomik/vimeo-dl/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/akiomik/vimeo-dl/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/akiomik/vimeo-dl/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/akiomik/vimeo-dl/compare/v0.0.3...v0.1.0
