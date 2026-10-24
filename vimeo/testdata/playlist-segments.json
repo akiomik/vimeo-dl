@@ -1,0 +1,48 @@
+{
+  "clip_id": "synthetic-playlist",
+  "base_url": "../../../../remux/avf/",
+  "video": [
+    {
+      "id": "synthetic-video",
+      "base_url": "video/",
+      "bitrate": 1200000,
+      "init_segment": "AAECAw==",
+      "segments": [
+        {
+          "start": 0,
+          "end": 2,
+          "url": "segment.m4s?pathsig=synthetic-only&sid=1&st=video",
+          "size": 4
+        },
+        {
+          "start": 2,
+          "end": 4,
+          "url": "segment.m4s?pathsig=synthetic-only&sid=2&st=video",
+          "size": 4
+        }
+      ]
+    }
+  ],
+  "audio": [
+    {
+      "id": "synthetic-audio",
+      "base_url": "audio/",
+      "bitrate": 128000,
+      "init_segment": "BAUGBw==",
+      "segments": [
+        {
+          "start": 0,
+          "end": 2,
+          "url": "segment.m4s?pathsig=synthetic-only&sid=1&st=audio",
+          "size": 4
+        },
+        {
+          "start": 2,
+          "end": 4,
+          "url": "segment.m4s?pathsig=synthetic-only&sid=2&st=audio",
+          "size": 4
+        }
+      ]
+    }
+  ]
+}
