@@ -8,6 +8,8 @@ For `0.x.y` releases, `x` increases for breaking changes, while `y` increases fo
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-10-24
+
 ### Fixed
 
 - Limit FFmpeg error output retained in memory while combining media.
@@ -107,7 +109,8 @@ For `0.x.y` releases, `x` increases for breaking changes, while `y` increases fo
 
 - Initial release of the Vimeo video downloader.
 
-[Unreleased]: https://github.com/akiomik/vimeo-dl/compare/v0.3.1...main
+[Unreleased]: https://github.com/akiomik/vimeo-dl/compare/v0.3.2...main
+[0.3.2]: https://github.com/akiomik/vimeo-dl/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/akiomik/vimeo-dl/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/akiomik/vimeo-dl/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/akiomik/vimeo-dl/compare/v0.1.0...v0.2.0
