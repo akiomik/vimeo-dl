@@ -46,6 +46,45 @@ func TestSyntheticManifestPreflight(t *testing.T) {
 	}
 }
 
+func TestSegmentURLResolutionBoundsExpansion(t *testing.T) {
+	base, err := url.Parse("https://media.example.invalid/" + strings.Repeat("a", 48) + "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	segments := []Segment{
+		{Url: "part.mp4?range=0-1"},
+		{Url: "part.mp4?range=2-3"},
+	}
+	limits := segmentURLLimits{maxSegments: 2, maxURLBytes: 256, maxResolvedBytes: 128}
+	if _, err := resolveSegmentURLs(base, segments, "video", limits); err == nil || !strings.Contains(err.Error(), "length limit") {
+		t.Fatalf("expanded URLs were accepted: %v", err)
+	}
+	limits.maxResolvedBytes = 256
+	urls, err := resolveSegmentURLs(base, segments, "video", limits)
+	if err != nil || len(urls) != 2 || urls[0].String() == urls[1].String() {
+		t.Fatalf("distinct range URLs were rejected: urls=%v, error=%v", urls, err)
+	}
+	limits.maxURLBytes = 8
+	if _, err := resolveSegmentURLs(base, segments, "video", limits); err == nil || !strings.Contains(err.Error(), "length limit") {
+		t.Fatalf("oversized raw segment URL was accepted: %v", err)
+	}
+}
+
+func TestSegmentURLResolutionRejectsExcessiveCountBeforeAllocation(t *testing.T) {
+	manifestURL, _ := url.Parse("https://media.example.invalid/master.json")
+	segments := make([]Segment, maxSegmentsPerTrack+1)
+	manifest := MasterJson{
+		Video: []Video{{Id: "v", Segments: segments}},
+		Audio: []Audio{{Id: "a", Segments: segments}},
+	}
+	if _, err := manifest.VideoSegmentUrls(manifestURL, "v"); err == nil || !strings.Contains(err.Error(), "too many segments") {
+		t.Fatalf("oversized video track was accepted: %v", err)
+	}
+	if _, err := manifest.AudioSegmentUrls(manifestURL, "a"); err == nil || !strings.Contains(err.Error(), "too many segments") {
+		t.Fatalf("oversized audio track was accepted: %v", err)
+	}
+}
+
 func TestSegmentDownloadSizeAcceptsBothRangeSizeConventions(t *testing.T) {
 	resourceURL, _ := url.Parse("https://media.example.invalid/segment.mp4?range=10-19")
 	for _, size := range []int64{9, 10} {

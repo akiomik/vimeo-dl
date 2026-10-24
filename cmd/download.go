@@ -26,6 +26,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"github.com/akiomik/vimeo-dl/vimeo"
 )
@@ -87,6 +88,9 @@ func runDownloadContext(ctx context.Context, options downloadOptions) error {
 
 	name := options.OutputFilename
 	if name == "" {
+		if strings.IndexFunc(manifest.ClipId, unicode.IsControl) >= 0 {
+			return errors.New("manifest clip_id cannot be used as an output name; specify --output-file-name")
+		}
 		if manifest.ClipId == "." || manifest.ClipId == ".." || strings.ContainsAny(manifest.ClipId, `/\:`) {
 			return errors.New("manifest clip_id cannot be used as an output name; specify --output-file-name")
 		}
