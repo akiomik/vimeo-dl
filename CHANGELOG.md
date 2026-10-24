@@ -26,11 +26,6 @@ For `0.x.y` releases, `x` increases for breaking changes, while `y` increases fo
 - Keep downloaded media owner-only on POSIX filesystems and omit signed media URLs from progress and request error messages.
 - Exclude local private captures from Git and Docker build contexts.
 
-### Known limitations
-
-- An authorized `master.json` or `playlist.json` URL is still required; Vimeo video pages and HLS `.m3u8` URLs are not supported inputs.
-- Browser-versus-CLI access differences for some signed JSON manifests remain under investigation in [#65](https://github.com/akiomik/vimeo-dl/issues/65).
-
 ## [0.3.0] - 2026-10-22
 
 ### Added
