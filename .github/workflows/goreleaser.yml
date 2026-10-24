@@ -1,12 +1,45 @@
 name: goreleaser
 
 on:
+  pull_request:
+    branches: [ main ]
+    paths:
+      - '.github/workflows/goreleaser.yml'
+      - '.goreleaser.yaml'
+      - 'scripts/prepare-release-notes.sh'
   push:
     tags:
       - 'v[0-9]+.[0-9]+.[0-9]+'
 
 jobs:
+  verify:
+    name: Verify (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: .go-version
+          check-latest: true
+      - run: go build ./...
+      - run: go test ./...
+      - if: matrix.os == 'ubuntu-latest'
+        uses: dominikh/staticcheck-action@v1.4.1
+        with:
+          version: "2026.2.2"
+          install-go: false
+      - if: matrix.os == 'ubuntu-latest'
+        name: Check known vulnerabilities
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
+
   goreleaser:
+    needs: verify
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: write
