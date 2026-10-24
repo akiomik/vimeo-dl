@@ -2,7 +2,9 @@ package vimeo
 
 import (
 	"bytes"
+	"context"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -114,6 +116,67 @@ func TestDownloadSizedStagesLargeSegmentInOutputDirectory(t *testing.T) {
 	}
 	if info, err := output.Stat(); err != nil || info.Size() != size {
 		t.Fatalf("output size = %v, error = %v; want %d", info, err, size)
+	}
+}
+
+func TestDownloadSizedStagesLargeSegmentWhenOutputDirectoryIsNotWritable(t *testing.T) {
+	output, err := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
+	if err != nil {
+		t.Skipf("cannot open null output: %v", err)
+	}
+	defer output.Close()
+	directory := filepath.Dir(output.Name())
+	probe, err := os.CreateTemp(directory, ".vimeo-dl-probe-*")
+	if err == nil {
+		probe.Close()
+		os.Remove(probe.Name())
+		t.Skip("null output directory permits creating sibling files")
+	}
+
+	const size = (8 << 20) + 1
+	data := bytes.Repeat([]byte("X"), size)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write(data)
+	}))
+	defer server.Close()
+	resourceURL, _ := url.Parse(server.URL + "/segment.m4s")
+	if err := NewClient().DownloadSized(resourceURL, output, size); err != nil {
+		t.Fatalf("large segment to existing writable file failed: %v", err)
+	}
+}
+
+type canceledSegmentBody struct{ sent bool }
+
+func (body *canceledSegmentBody) Read(data []byte) (int, error) {
+	if !body.sent {
+		body.sent = true
+		return copy(data, "AB"), nil
+	}
+	return 0, context.Canceled
+}
+
+type canceledBodyTransport struct{ requests atomic.Int32 }
+
+func (transport *canceledBodyTransport) RoundTrip(*http.Request) (*http.Response, error) {
+	transport.requests.Add(1)
+	return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(&canceledSegmentBody{})}, nil
+}
+
+func TestDownloadSizedDoesNotRetryCanceledBody(t *testing.T) {
+	transport := &canceledBodyTransport{}
+	client := NewClient()
+	client.Client = &http.Client{Transport: transport}
+	resourceURL, _ := url.Parse("https://media.example.invalid/segment.m4s")
+	var output bytes.Buffer
+	err := client.DownloadSized(resourceURL, &output, 4)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("error = %v, want context cancellation", err)
+	}
+	if got := transport.requests.Load(); got != 1 {
+		t.Fatalf("requests = %d, want no retry after cancellation", got)
+	}
+	if output.Len() != 0 {
+		t.Fatalf("canceled response published %d bytes", output.Len())
 	}
 }
 

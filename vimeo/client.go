@@ -169,6 +169,11 @@ func (c *Client) DownloadSized(resourceURL *url.URL, output io.Writer, expectedS
 			temporaryDirectory = filepath.Dir(file.Name())
 		}
 		segmentFile, err := os.CreateTemp(temporaryDirectory, ".vimeo-dl-segment-*")
+		if err != nil && temporaryDirectory != "" {
+			// The destination may be an already-open file in a directory where
+			// creating siblings is forbidden (for example, os.Stdout in /dev).
+			segmentFile, err = os.CreateTemp("", ".vimeo-dl-segment-*")
+		}
 		if err != nil {
 			return fmt.Errorf("creating segment staging file failed: %w", err)
 		}
@@ -252,7 +257,7 @@ func (c *Client) downloadSegmentOnce(resourceURL *url.URL, output io.Writer, exp
 	recorder := &writeErrorRecorder{output: output}
 	written, err := io.Copy(recorder, body)
 	if err != nil {
-		return recorder.err == nil, fmt.Errorf("segment download failed: %w", err)
+		return recorder.err == nil && !errors.Is(err, context.Canceled), fmt.Errorf("segment download failed: %w", err)
 	}
 	if expectedSize > 0 && written != expectedSize {
 		return written < expectedSize, fmt.Errorf("segment size mismatch: expected %d bytes, received %d", expectedSize, written)
