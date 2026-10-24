@@ -23,6 +23,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/akiomik/vimeo-dl/vimeo"
 )
@@ -287,16 +288,44 @@ func findFFmpeg(configuredPath string) (string, error) {
 	return path, nil
 }
 
+const maxFFmpegErrorBytes = 4096
+
+type ffmpegErrorOutput struct {
+	mu   sync.Mutex
+	tail []byte
+}
+
+func (o *ffmpegErrorOutput) Write(data []byte) (int, error) {
+	written := len(data)
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if written >= maxFFmpegErrorBytes {
+		o.tail = append(o.tail[:0], data[written-maxFFmpegErrorBytes:]...)
+		return written, nil
+	}
+	if excess := len(o.tail) + written - maxFFmpegErrorBytes; excess > 0 {
+		copy(o.tail, o.tail[excess:])
+		o.tail = o.tail[:len(o.tail)-excess]
+	}
+	o.tail = append(o.tail, data...)
+	return written, nil
+}
+
+func (o *ffmpegErrorOutput) String() string {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return string(o.tail)
+}
+
 func combineVideoAndAudio(ffmpegPath, videoFilename, audioFilename, outputFilename string) error {
 	command := exec.Command(ffmpegPath, "-nostdin", "-y", "-loglevel", "error",
 		"-i", videoFilename, "-i", audioFilename,
 		"-map", "0:v:0", "-map", "1:a:0", "-c", "copy", outputFilename)
-	output, err := command.CombinedOutput()
-	if err != nil {
-		if len(output) > 4096 {
-			output = output[len(output)-4096:]
-		}
-		return fmt.Errorf("ffmpeg failed: %w: %s", err, strings.TrimSpace(string(output)))
+	output := new(ffmpegErrorOutput)
+	command.Stdout = output
+	command.Stderr = output
+	if err := command.Run(); err != nil {
+		return fmt.Errorf("ffmpeg failed: %w: %s", err, strings.TrimSpace(output.String()))
 	}
 	info, err := os.Stat(outputFilename)
 	if err != nil {

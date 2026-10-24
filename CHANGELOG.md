@@ -8,6 +8,10 @@ For `0.x.y` releases, `x` increases for breaking changes, while `y` increases fo
 
 ## [Unreleased]
 
+### Fixed
+
+- Limit FFmpeg error output retained in memory while combining media.
+
 ## [0.3.1] - 2026-10-24
 
 ### Fixed
