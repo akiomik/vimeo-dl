@@ -87,6 +87,9 @@ func (c *Client) get(ctx context.Context, resourceURL *url.URL) (*http.Response,
 
 	res, err := c.Client.Do(req)
 	if err != nil {
+		if ctx.Err() != nil {
+			err = ctx.Err()
+		}
 		return nil, &RequestError{Err: err}
 	}
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
@@ -113,6 +116,9 @@ func (c *Client) GetMasterJsonContext(ctx context.Context, resourceURL *url.URL)
 	}
 	jsonBlob, err := io.ReadAll(io.LimitReader(res.Body, maxManifestBytes+1))
 	if err != nil {
+		if ctx.Err() != nil {
+			err = ctx.Err()
+		}
 		return nil, fmt.Errorf("reading manifest failed: %w", err)
 	}
 	if len(jsonBlob) > maxManifestBytes {
@@ -222,6 +228,9 @@ func (c *Client) DownloadSizedContext(ctx context.Context, resourceURL *url.URL,
 			}
 			return nil
 		}
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
 		if !retryable || attempt == maxSegmentAttempts {
 			if attempt > 1 {
 				return fmt.Errorf("segment failed after %d attempts: %w", attempt, err)
@@ -278,13 +287,16 @@ func (c *Client) downloadSegmentOnce(ctx context.Context, resourceURL *url.URL, 
 	recorder := &writeErrorRecorder{output: output}
 	written, err := io.Copy(recorder, body)
 	if err != nil {
+		if ctx.Err() != nil {
+			return false, fmt.Errorf("segment download failed: %w", ctx.Err())
+		}
 		return recorder.err == nil && ctx.Err() == nil && !errors.Is(err, context.Canceled), fmt.Errorf("segment download failed: %w", err)
-	}
-	if expectedSize > 0 && written != expectedSize {
-		return written < expectedSize, fmt.Errorf("segment size mismatch: expected %d bytes, received %d", expectedSize, written)
 	}
 	if err := ctx.Err(); err != nil {
 		return false, err
+	}
+	if expectedSize > 0 && written != expectedSize {
+		return written < expectedSize, fmt.Errorf("segment size mismatch: expected %d bytes, received %d", expectedSize, written)
 	}
 
 	return false, nil
