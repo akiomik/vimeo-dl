@@ -19,6 +19,8 @@ request it with `base64_init=1`. If multiple segments resolve to the same media
 URL, request it with `query_string_ranges=1`. Quote the URL in the shell so `&`
 stays inside the argument. Signed manifest URLs can expire; obtain a fresh one
 if the request returns an HTTP error. The tool does not print signed media URLs.
+On filesystems with POSIX permissions, downloaded media is readable only by the
+current user.
 
 ## Advanced Usage
 

@@ -13,11 +13,13 @@ For `0.x.y` releases, `x` increases for breaking changes, while `y` increases fo
 - Report HTTP and HTML responses clearly when a JSON manifest or media segment cannot be fetched.
 - Reject repeated segment URLs and invalid initialization data before downloading, with guidance for the required manifest query parameters.
 - Verify known segment sizes and resolve segment URLs against the final manifest URL after redirects.
-- Keep incomplete downloads out of final output files so failed downloads can be retried.
+- Stage segment downloads and clean up partial output after recoverable errors so failed downloads can be retried.
+- Publish output without overwriting existing files even on filesystems that do not support hard links.
 
 ### Security
 
-- Omit signed media URLs from progress and request error messages, and exclude local private captures from Git and Docker build contexts.
+- Keep downloaded media owner-only on POSIX filesystems and omit signed media URLs from progress and request error messages.
+- Exclude local private captures from Git and Docker build contexts.
 
 ## [0.3.0] - 2026-10-22
 

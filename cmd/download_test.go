@@ -2,10 +2,12 @@ package cmd
 
 import (
 	"bytes"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -143,5 +145,72 @@ func TestRunDownloadRejectsVideoPageAndEscapedAmpersand(t *testing.T) {
 		if err == nil || !strings.Contains(err.Error(), tc.want) {
 			t.Fatalf("input error = %v, want %q", err, tc.want)
 		}
+	}
+}
+
+func unsupportedLink(string, string) error {
+	return errors.New("hard links are unavailable")
+}
+
+func TestPublishFilesWithoutHardLinks(t *testing.T) {
+	directory := t.TempDir()
+	temporary := filepath.Join(directory, "staged.mp4")
+	final := filepath.Join(directory, "published.mp4")
+	if err := os.WriteFile(temporary, []byte("synthetic media"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := publishFilesWithLink(unsupportedLink, stagedFile{temporary, final}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(final)
+	if err != nil || string(got) != "synthetic media" {
+		t.Fatalf("published bytes = %q, err = %v", got, err)
+	}
+	if runtime.GOOS != "windows" {
+		info, err := os.Stat(final)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if info.Mode().Perm()&0077 != 0 {
+			t.Fatalf("published file is accessible to other users: %v", info.Mode().Perm())
+		}
+	}
+}
+
+func TestPublishFilesRollbackPreservesExistingFile(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		link func(string, string) error
+	}{
+		{"hard-link", os.Link},
+		{"copy-fallback", unsupportedLink},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			directory := t.TempDir()
+			firstTemp := filepath.Join(directory, "first-staged.mp4")
+			secondTemp := filepath.Join(directory, "second-staged.mp4")
+			firstFinal := filepath.Join(directory, "first.mp4")
+			secondFinal := filepath.Join(directory, "second.mp4")
+			for _, path := range []string{firstTemp, secondTemp} {
+				if err := os.WriteFile(path, []byte("synthetic media"), 0600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := os.WriteFile(secondFinal, []byte("existing"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			err := publishFilesWithLink(tc.link,
+				stagedFile{firstTemp, firstFinal}, stagedFile{secondTemp, secondFinal})
+			if err == nil {
+				t.Fatal("expected a no-overwrite error")
+			}
+			if _, err := os.Stat(firstFinal); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("first output remains after rollback: %v", err)
+			}
+			got, err := os.ReadFile(secondFinal)
+			if err != nil || string(got) != "existing" {
+				t.Fatalf("existing output changed: bytes=%q, err=%v", got, err)
+			}
+		})
 	}
 }

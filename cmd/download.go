@@ -41,6 +41,11 @@ type stagedFile struct {
 	final     string
 }
 
+type publishedFile struct {
+	path string
+	info os.FileInfo
+}
+
 func runDownload(options downloadOptions) error {
 	if strings.Contains(options.Input, `\u0026`) {
 		return errors.New("input URL contains a literal \\u0026; copy the decoded URL and quote it in the shell")
@@ -110,36 +115,36 @@ func runDownload(options downloadOptions) error {
 			return err
 		}
 	}
+	stagingDirectory, err := os.MkdirTemp(filepath.Dir(videoFinal), ".vimeo-dl-*")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(stagingDirectory)
 
 	fmt.Println("Downloading video")
-	videoTemp, err := downloadToTemp(videoFinal, func(output io.Writer) error {
+	videoTemp, err := downloadToTemp(stagingDirectory, func(output io.Writer) error {
 		return manifest.CreateVideoFile(output, manifestURL, selectedVideoID, client)
 	})
 	if err != nil {
 		return err
 	}
-	defer os.Remove(videoTemp)
-
 	if !includeAudio {
 		return publishFiles(stagedFile{videoTemp, videoFinal})
 	}
 	fmt.Println("Downloading audio")
-	audioTemp, err := downloadToTemp(audioFinal, func(output io.Writer) error {
+	audioTemp, err := downloadToTemp(stagingDirectory, func(output io.Writer) error {
 		return manifest.CreateAudioFile(output, manifestURL, selectedAudioID, client)
 	})
 	if err != nil {
 		return err
 	}
-	defer os.Remove(audioTemp)
-
 	if !options.Combine {
 		return publishFiles(stagedFile{videoTemp, videoFinal}, stagedFile{audioTemp, audioFinal})
 	}
-	combinedTemp, err := reserveTemp(combinedFinal)
+	combinedTemp, err := reserveTemp(stagingDirectory)
 	if err != nil {
 		return err
 	}
-	defer os.Remove(combinedTemp)
 	if err := combineVideoAndAudio(ffmpegPath, videoTemp, audioTemp, combinedTemp); err != nil {
 		return err
 	}
@@ -157,8 +162,8 @@ func ensureAbsent(filename string) error {
 	return nil
 }
 
-func downloadToTemp(filename string, write func(io.Writer) error) (string, error) {
-	file, err := os.CreateTemp(filepath.Dir(filename), ".vimeo-dl-*.mp4")
+func downloadToTemp(directory string, write func(io.Writer) error) (string, error) {
+	file, err := os.CreateTemp(directory, "*.mp4")
 	if err != nil {
 		return "", err
 	}
@@ -170,13 +175,9 @@ func downloadToTemp(filename string, write func(io.Writer) error) (string, error
 		}
 	}()
 	writeErr := write(file)
-	chmodErr := file.Chmod(0644)
 	closeErr := file.Close()
 	if writeErr != nil {
 		return "", writeErr
-	}
-	if chmodErr != nil {
-		return "", chmodErr
 	}
 	if closeErr != nil {
 		return "", closeErr
@@ -185,8 +186,8 @@ func downloadToTemp(filename string, write func(io.Writer) error) (string, error
 	return temporary, nil
 }
 
-func reserveTemp(filename string) (string, error) {
-	file, err := os.CreateTemp(filepath.Dir(filename), ".vimeo-dl-*.mp4")
+func reserveTemp(directory string) (string, error) {
+	file, err := os.CreateTemp(directory, "*.mp4")
 	if err != nil {
 		return "", err
 	}
@@ -198,24 +199,67 @@ func reserveTemp(filename string) (string, error) {
 }
 
 func publishFiles(files ...stagedFile) error {
-	created := make([]stagedFile, 0, len(files))
+	return publishFilesWithLink(os.Link, files...)
+}
+
+func publishFilesWithLink(link func(string, string) error, files ...stagedFile) error {
+	created := make([]publishedFile, 0, len(files))
 	for _, file := range files {
-		if err := os.Link(file.temporary, file.final); err != nil {
-			for _, linked := range created {
-				removeIfStillLinked(linked)
+		published, err := publishFile(link, file)
+		if err != nil {
+			for _, previous := range created {
+				removeIfUnchanged(previous)
 			}
 			return fmt.Errorf("publishing %s failed: %w", file.final, err)
 		}
-		created = append(created, file)
+		created = append(created, published)
 	}
 	return nil
 }
 
-func removeIfStillLinked(file stagedFile) {
-	temporaryInfo, temporaryErr := os.Stat(file.temporary)
-	finalInfo, finalErr := os.Stat(file.final)
-	if temporaryErr == nil && finalErr == nil && os.SameFile(temporaryInfo, finalInfo) {
-		os.Remove(file.final)
+func publishFile(link func(string, string) error, file stagedFile) (publishedFile, error) {
+	temporaryInfo, err := os.Stat(file.temporary)
+	if err != nil {
+		return publishedFile{}, err
+	}
+	if err := link(file.temporary, file.final); err == nil {
+		return publishedFile{file.final, temporaryInfo}, nil
+	}
+
+	// Some filesystems do not support hard links. Copying to an exclusively
+	// created destination keeps the no-overwrite guarantee on those volumes.
+	source, err := os.Open(file.temporary)
+	if err != nil {
+		return publishedFile{}, err
+	}
+	defer source.Close()
+	destination, err := os.OpenFile(file.final, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+	if err != nil {
+		return publishedFile{}, err
+	}
+	info, statErr := destination.Stat()
+	if statErr != nil {
+		destination.Close()
+		return publishedFile{}, statErr
+	}
+	published := publishedFile{file.final, info}
+	_, copyErr := io.Copy(destination, source)
+	closeErr := destination.Close()
+	if copyErr != nil {
+		removeIfUnchanged(published)
+		return publishedFile{}, copyErr
+	}
+	if closeErr != nil {
+		removeIfUnchanged(published)
+		return publishedFile{}, closeErr
+	}
+	return published, nil
+}
+
+func removeIfUnchanged(file publishedFile) {
+	current, err := os.Stat(file.path)
+	if err == nil && os.SameFile(file.info, current) {
+		os.Remove(file.path)
 	}
 }
 
@@ -251,7 +295,7 @@ func combineVideoAndAudio(ffmpegPath, videoFilename, audioFilename, outputFilena
 	if info.Size() == 0 {
 		return errors.New("ffmpeg produced an empty output")
 	}
-	if err := os.Chmod(outputFilename, 0644); err != nil {
+	if err := os.Chmod(outputFilename, 0600); err != nil {
 		return err
 	}
 	return nil
