@@ -226,6 +226,9 @@ func (c *Client) DownloadSizedContext(ctx context.Context, resourceURL *url.URL,
 			if err := publish(); err != nil {
 				return fmt.Errorf("writing completed segment failed: %w", err)
 			}
+			if err := ctx.Err(); err != nil {
+				return err
+			}
 			return nil
 		}
 		if ctx.Err() != nil {
