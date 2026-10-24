@@ -11,6 +11,7 @@ For `0.x.y` releases, `x` increases for breaking changes, while `y` increases fo
 ### Fixed
 
 - Limit FFmpeg error output retained in memory while combining media.
+- Stop downloads and FFmpeg on interruption, clean up staged files, and bound individual HTTP requests with a configurable timeout.
 
 ## [0.3.1] - 2026-10-24
 

@@ -19,6 +19,9 @@ request it with `base64_init=1`. If multiple segments resolve to the same media
 URL, request it with `query_string_ranges=1`. Quote the URL in the shell so `&`
 stays inside the argument. Signed manifest URLs can expire; obtain a fresh one
 if the request returns an HTTP error. The tool does not print signed media URLs.
+Each manifest or media request has a 30-minute timeout by default; use
+`--request-timeout` to adjust it (or `--request-timeout=0` to disable it).
+Interrupting the command stops active requests and FFmpeg and removes staged files.
 On filesystems with POSIX permissions, downloaded media is readable only by the
 current user.
 
@@ -73,6 +76,7 @@ Flags:
   -h, --help                      help for vimeo-dl
   -i, --input string              url for master.json or playlist.json (required)
   -o, --output-file-name string   output file name
+      --request-timeout duration  maximum duration of each HTTP request (0 disables) (default 30m0s)
       --user-agent string         user-agent for request
   -v, --version                   version for vimeo-dl
       --video-id string           video id
