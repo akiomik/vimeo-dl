@@ -5,6 +5,8 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
+  schedule:
+    - cron: '37 3 * * 2'
 
 jobs:
 
@@ -23,6 +25,8 @@ jobs:
       with:
         version: "2026.2.2"
         install-go: false
+    - name: Check known vulnerabilities
+      run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
 
   windows:
     name: Windows
