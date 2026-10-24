@@ -23,3 +23,15 @@ jobs:
       with:
         version: "2026.2.2"
         install-go: false
+
+  windows:
+    name: Windows
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v7
+    - uses: actions/setup-go@v7
+      with:
+        go-version-file: .go-version
+        check-latest: true
+    - run: go build ./...
+    - run: go test ./...

@@ -10,6 +10,7 @@ For `0.x.y` releases, `x` increases for breaking changes, while `y` increases fo
 
 ### Fixed
 
+- Allow `--combine` to use an explicitly selected FFmpeg executable when current-directory lookup is rejected.
 - Retry interrupted or truncated JSON media segments without duplicating partial bytes in the output.
 - Handle the inclusive length of range-qualified JSON segments and reject missing or inconsistent segment sizes before downloading.
 - Report HTTP and HTML responses clearly when a JSON manifest or media segment cannot be fetched.

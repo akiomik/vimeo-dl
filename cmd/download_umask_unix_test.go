@@ -8,9 +8,30 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"testing"
 )
+
+func TestFindFFmpegRequiresExplicitCurrentDirectoryPath(t *testing.T) {
+	directory := t.TempDir()
+	ffmpegPath := filepath.Join(directory, "ffmpeg")
+	if err := os.WriteFile(ffmpegPath, []byte("#!/bin/sh\nexit 0\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(directory)
+	t.Setenv("PATH", ".")
+	if _, err := findFFmpeg(""); err == nil || !strings.Contains(err.Error(), "--ffmpeg-path") {
+		t.Fatalf("implicit current-directory lookup error = %v", err)
+	}
+	got, err := findFFmpeg("./ffmpeg")
+	if err != nil {
+		t.Fatalf("explicit current-directory executable failed: %v", err)
+	}
+	if got != ffmpegPath {
+		t.Fatalf("ffmpeg path = %q, want %q", got, ffmpegPath)
+	}
+}
 
 func TestPublishFilesCopyFailureCleansUp(t *testing.T) {
 	directory := t.TempDir()
@@ -56,17 +77,20 @@ func TestRunDownloadKeepsPrivatePermissionsWithRestrictiveUmask(t *testing.T) {
 	defer syscall.Umask(previousUmask)
 
 	for _, tc := range []struct {
-		name     string
-		combine  bool
-		fileEnds []string
+		name       string
+		combine    bool
+		ffmpegPath string
+		fileEnds   []string
 	}{
-		{"separate", false, []string{"-video.mp4", "-audio.mp4"}},
-		{"combined", true, []string{".mp4"}},
+		{"separate", false, "", []string{"-video.mp4", "-audio.mp4"}},
+		{"combined", true, "", []string{".mp4"}},
+		{"combined-explicit", true, ffmpegPath, []string{".mp4"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			base := filepath.Join(directory, tc.name)
 			if err := runDownload(downloadOptions{
-				Input: server.URL + "/manifest/master.json", OutputFilename: base, Combine: tc.combine,
+				Input: server.URL + "/manifest/master.json", OutputFilename: base,
+				Combine: tc.combine, FFmpegPath: tc.ffmpegPath,
 			}); err != nil {
 				t.Fatal(err)
 			}

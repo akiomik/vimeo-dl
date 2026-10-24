@@ -32,6 +32,7 @@ type downloadOptions struct {
 	UserAgent      string
 	VideoID        string
 	AudioID        string
+	FFmpegPath     string
 	OutputFilename string
 	Combine        bool
 }
@@ -110,7 +111,7 @@ func runDownload(options downloadOptions) error {
 
 	var ffmpegPath string
 	if options.Combine {
-		ffmpegPath, err = findFFmpeg()
+		ffmpegPath, err = findFFmpeg(options.FFmpegPath)
 		if err != nil {
 			return err
 		}
@@ -263,13 +264,22 @@ func removeIfUnchanged(file publishedFile) {
 	}
 }
 
-func findFFmpeg() (string, error) {
-	path, err := exec.LookPath("ffmpeg")
-	if errors.Is(err, exec.ErrDot) {
-		return "", errors.New("ffmpeg was found only through the current directory; install it in an absolute PATH directory")
-	}
-	if err != nil {
-		return "", fmt.Errorf("ffmpeg is required for --combine: %w", err)
+func findFFmpeg(configuredPath string) (string, error) {
+	var path string
+	var err error
+	if configuredPath != "" {
+		path, err = filepath.Abs(configuredPath)
+		if err != nil {
+			return "", fmt.Errorf("invalid --ffmpeg-path: %w", err)
+		}
+	} else {
+		path, err = exec.LookPath("ffmpeg")
+		if errors.Is(err, exec.ErrDot) {
+			return "", errors.New("ffmpeg was found only through the current directory; pass --ffmpeg-path with the intended executable path or install ffmpeg in an absolute PATH directory")
+		}
+		if err != nil {
+			return "", fmt.Errorf("ffmpeg is required for --combine: %w", err)
+		}
 	}
 	if err := exec.Command(path, "-version").Run(); err != nil {
 		return "", fmt.Errorf("ffmpeg cannot run: %w", err)
