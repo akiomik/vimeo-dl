@@ -3,6 +3,7 @@ package cmd
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -251,6 +252,64 @@ func TestRunDownloadRejectsVideoPageAndEscapedAmpersand(t *testing.T) {
 		if err == nil || !strings.Contains(err.Error(), tc.want) {
 			t.Fatalf("input error = %v, want %q", err, tc.want)
 		}
+	}
+}
+
+func TestRunDownloadRejectsManifestClipIDControls(t *testing.T) {
+	directory := t.TempDir()
+	t.Chdir(directory)
+	var mediaRequests atomic.Int32
+	manifestData := struct {
+		ClipID string `json:"clip_id"`
+		Video  []any  `json:"video"`
+	}{ClipID: "\x1b[31m\x00", Video: []any{map[string]any{
+		"id": "v", "init_segment": "AAECAw==", "segments": []any{map[string]any{"url": "segment.mp4", "size": 4}},
+	}}}
+	manifest, err := json.Marshal(manifestData)
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifestData.ClipID = "normal-123"
+	safeManifest, err := json.Marshal(manifestData)
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/master.json" || r.URL.Path == "/safe/master.json" {
+			w.Header().Set("Content-Type", "application/json")
+			if r.URL.Path == "/master.json" {
+				w.Write(manifest)
+			} else {
+				w.Write(safeManifest)
+			}
+			return
+		}
+		mediaRequests.Add(1)
+		w.Write([]byte("ABCD"))
+	}))
+	defer server.Close()
+
+	err = runDownload(downloadOptions{Input: server.URL + "/master.json"})
+	if err == nil || !strings.Contains(err.Error(), "manifest clip_id") || strings.ContainsRune(err.Error(), '\x1b') || strings.ContainsRune(err.Error(), '\x00') {
+		t.Fatalf("unsafe clip ID error = %q", err)
+	}
+	if mediaRequests.Load() != 0 {
+		t.Fatalf("made %d media requests for an unsafe clip ID", mediaRequests.Load())
+	}
+	assertNoOutputOrTemp(t, directory)
+
+	base := filepath.Join(directory, "safe")
+	if err := runDownload(downloadOptions{Input: server.URL + "/master.json", OutputFilename: base}); err != nil {
+		t.Fatalf("explicit output name was rejected: %v", err)
+	}
+	if got, err := os.ReadFile(base + "-video.mp4"); err != nil || !bytes.Equal(got, []byte{0, 1, 2, 3, 'A', 'B', 'C', 'D'}) {
+		t.Fatalf("explicit output bytes = %v, error = %v", got, err)
+	}
+	if err := runDownload(downloadOptions{Input: server.URL + "/safe/master.json"}); err != nil {
+		t.Fatalf("ordinary manifest clip ID was rejected: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(directory, "normal-123-video.mp4")); err != nil {
+		t.Fatalf("default output was not published: %v", err)
 	}
 }
 

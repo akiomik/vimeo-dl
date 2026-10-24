@@ -13,6 +13,11 @@ For `0.x.y` releases, `x` increases for breaking changes, while `y` increases fo
 - Limit FFmpeg error output retained in memory while combining media.
 - Stop downloads and FFmpeg on interruption, clean up staged files, and bound individual HTTP requests with a configurable timeout.
 
+### Security
+
+- Bound resolved segment URLs from JSON manifests before downloading media.
+- Reject control characters in manifest-derived output names.
+
 ## [0.3.1] - 2026-10-24
 
 ### Fixed

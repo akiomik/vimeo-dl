@@ -54,6 +54,26 @@ type MasterJson struct {
 	sourceURL *url.URL
 }
 
+// A manifest can reuse one long base_url for every segment. These limits bound
+// the memory used by resolved URLs separately from the manifest response size.
+const (
+	maxSegmentsPerTrack        = 100_000
+	maxSegmentURLBytes         = 32 << 10
+	maxResolvedSegmentURLBytes = 64 << 20
+)
+
+type segmentURLLimits struct {
+	maxSegments      int
+	maxURLBytes      int
+	maxResolvedBytes int
+}
+
+var defaultSegmentURLLimits = segmentURLLimits{
+	maxSegments:      maxSegmentsPerTrack,
+	maxURLBytes:      maxSegmentURLBytes,
+	maxResolvedBytes: maxResolvedSegmentURLBytes,
+}
+
 func (v *Video) DecodedInitSegment() ([]byte, error) {
 	decoded, err := base64.StdEncoding.DecodeString(v.InitSegment)
 	if err != nil {
@@ -133,15 +153,9 @@ func (mj *MasterJson) FindMaximumBitrateAudio() *Audio {
 }
 
 func (mj *MasterJson) VideoSegmentUrls(masterJsonUrl *url.URL, id string) ([]*url.URL, error) {
-	if mj.sourceURL != nil {
-		masterJsonUrl = mj.sourceURL
-	}
-	if masterJsonUrl == nil {
-		return nil, errors.New("manifest URL is missing")
-	}
-	baseUrl, err := url.Parse(mj.BaseUrl)
+	baseUrl, err := mj.resolveBaseURL(masterJsonUrl)
 	if err != nil {
-		return nil, errors.New("manifest base_url is invalid")
+		return nil, err
 	}
 
 	video, err := mj.FindVideo(id)
@@ -149,34 +163,17 @@ func (mj *MasterJson) VideoSegmentUrls(masterJsonUrl *url.URL, id string) ([]*ur
 		return nil, err
 	}
 
-	videoBaseUrl, err := url.Parse(video.BaseUrl)
+	videoBaseUrl, err := parseTrackBaseURL(video.BaseUrl, "video")
 	if err != nil {
-		return nil, errors.New("video base_url is invalid")
+		return nil, err
 	}
-
-	urls := make([]*url.URL, len(video.Segments))
-	for i, s := range video.Segments {
-		segmentUrl, err := url.Parse(s.Url)
-		if err != nil {
-			return nil, fmt.Errorf("video segment %d URL is invalid", i+1)
-		}
-
-		urls[i] = masterJsonUrl.ResolveReference(baseUrl).ResolveReference(videoBaseUrl).ResolveReference(segmentUrl)
-	}
-
-	return urls, validateDistinctSegmentURLs(urls)
+	return resolveSegmentURLs(baseUrl.ResolveReference(videoBaseUrl), video.Segments, "video", defaultSegmentURLLimits)
 }
 
 func (mj *MasterJson) AudioSegmentUrls(masterJsonUrl *url.URL, id string) ([]*url.URL, error) {
-	if mj.sourceURL != nil {
-		masterJsonUrl = mj.sourceURL
-	}
-	if masterJsonUrl == nil {
-		return nil, errors.New("manifest URL is missing")
-	}
-	baseUrl, err := url.Parse(mj.BaseUrl)
+	baseUrl, err := mj.resolveBaseURL(masterJsonUrl)
 	if err != nil {
-		return nil, errors.New("manifest base_url is invalid")
+		return nil, err
 	}
 
 	audio, err := mj.FindAudio(id)
@@ -184,37 +181,72 @@ func (mj *MasterJson) AudioSegmentUrls(masterJsonUrl *url.URL, id string) ([]*ur
 		return nil, err
 	}
 
-	audioBaseUrl, err := url.Parse(audio.BaseUrl)
+	audioBaseUrl, err := parseTrackBaseURL(audio.BaseUrl, "audio")
 	if err != nil {
-		return nil, errors.New("audio base_url is invalid")
+		return nil, err
 	}
-
-	urls := make([]*url.URL, len(audio.Segments))
-	for i, s := range audio.Segments {
-		segmentUrl, err := url.Parse(s.Url)
-		if err != nil {
-			return nil, fmt.Errorf("audio segment %d URL is invalid", i+1)
-		}
-
-		urls[i] = masterJsonUrl.ResolveReference(baseUrl).ResolveReference(audioBaseUrl).ResolveReference(segmentUrl)
-	}
-
-	return urls, validateDistinctSegmentURLs(urls)
+	return resolveSegmentURLs(baseUrl.ResolveReference(audioBaseUrl), audio.Segments, "audio", defaultSegmentURLLimits)
 }
 
-func validateDistinctSegmentURLs(urls []*url.URL) error {
-	seen := make(map[string]int, len(urls))
-	for i, segmentURL := range urls {
-		if (segmentURL.Scheme != "http" && segmentURL.Scheme != "https") || segmentURL.Host == "" {
-			return fmt.Errorf("segment %d does not resolve to an HTTP or HTTPS URL", i+1)
+func (mj *MasterJson) resolveBaseURL(manifestURL *url.URL) (*url.URL, error) {
+	if mj.sourceURL != nil {
+		manifestURL = mj.sourceURL
+	}
+	if manifestURL == nil {
+		return nil, errors.New("manifest URL is missing")
+	}
+	if len(mj.BaseUrl) > maxSegmentURLBytes {
+		return nil, errors.New("manifest base_url exceeds length limit")
+	}
+	baseURL, err := url.Parse(mj.BaseUrl)
+	if err != nil {
+		return nil, errors.New("manifest base_url is invalid")
+	}
+	return manifestURL.ResolveReference(baseURL), nil
+}
+
+func parseTrackBaseURL(raw, kind string) (*url.URL, error) {
+	if len(raw) > maxSegmentURLBytes {
+		return nil, fmt.Errorf("%s base_url exceeds length limit", kind)
+	}
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return nil, fmt.Errorf("%s base_url is invalid", kind)
+	}
+	return parsed, nil
+}
+
+func resolveSegmentURLs(baseURL *url.URL, segments []Segment, kind string, limits segmentURLLimits) ([]*url.URL, error) {
+	if len(segments) > limits.maxSegments {
+		return nil, fmt.Errorf("%s has too many segments (limit %d)", kind, limits.maxSegments)
+	}
+	urls := make([]*url.URL, len(segments))
+	seen := make(map[string]int, len(segments))
+	resolvedBytes := 0
+	for i, segment := range segments {
+		if len(segment.Url) > limits.maxURLBytes {
+			return nil, fmt.Errorf("%s segment %d URL exceeds length limit", kind, i+1)
 		}
-		key := segmentURL.String()
+		segmentURL, err := url.Parse(segment.Url)
+		if err != nil {
+			return nil, fmt.Errorf("%s segment %d URL is invalid", kind, i+1)
+		}
+		resolved := baseURL.ResolveReference(segmentURL)
+		if (resolved.Scheme != "http" && resolved.Scheme != "https") || resolved.Host == "" {
+			return nil, fmt.Errorf("segment %d does not resolve to an HTTP or HTTPS URL", i+1)
+		}
+		key := resolved.String()
+		if len(key) > limits.maxURLBytes || len(key) > limits.maxResolvedBytes-resolvedBytes {
+			return nil, fmt.Errorf("%s segment URLs exceed length limit", kind)
+		}
 		if previous, ok := seen[key]; ok {
-			return fmt.Errorf("segments %d and %d resolve to the same URL; obtain a manifest with query-string ranges enabled", previous+1, i+1)
+			return nil, fmt.Errorf("segments %d and %d resolve to the same URL; obtain a manifest with query-string ranges enabled", previous+1, i+1)
 		}
 		seen[key] = i
+		resolvedBytes += len(key)
+		urls[i] = resolved
 	}
-	return nil
+	return urls, nil
 }
 
 // segmentDownloadSize accounts for Vimeo manifests that report the difference
