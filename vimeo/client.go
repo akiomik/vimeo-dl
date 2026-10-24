@@ -26,12 +26,18 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/akiomik/vimeo-dl/config"
 )
 
-const maxManifestBytes = 64 << 20
+const (
+	maxManifestBytes   = 64 << 20
+	maxSegmentAttempts = 3
+)
 
 // RequestError keeps the original error available to callers without putting
 // a signed media URL in the message shown by the CLI.
@@ -132,33 +138,127 @@ func (c *Client) Download(resourceURL *url.URL, output io.Writer) error {
 }
 
 func (c *Client) DownloadSized(resourceURL *url.URL, output io.Writer, expectedSize int64) error {
+	if expectedSize < 0 || expectedSize == int64(1<<63-1) {
+		return errors.New("segment size is invalid or too large")
+	}
+	if expectedSize == 0 {
+		_, err := c.downloadSegmentOnce(resourceURL, output, 0)
+		return err
+	}
+
+	// Keep each attempt out of the output until its length has been verified.
+	// This allows retrying a truncated response without duplicating its prefix.
+	var staged io.Writer
+	var reset func() error
+	var publish func() error
+	if expectedSize <= 8<<20 {
+		var segmentBuffer bytes.Buffer
+		segmentBuffer.Grow(int(expectedSize))
+		staged = &segmentBuffer
+		reset = func() error {
+			segmentBuffer.Reset()
+			return nil
+		}
+		publish = func() error {
+			_, err := io.Copy(output, &segmentBuffer)
+			return err
+		}
+	} else {
+		temporaryDirectory := ""
+		if file, ok := output.(*os.File); ok {
+			temporaryDirectory = filepath.Dir(file.Name())
+		}
+		segmentFile, err := os.CreateTemp(temporaryDirectory, ".vimeo-dl-segment-*")
+		if err != nil {
+			return fmt.Errorf("creating segment staging file failed: %w", err)
+		}
+		defer os.Remove(segmentFile.Name())
+		defer segmentFile.Close()
+		staged = segmentFile
+		reset = func() error {
+			if err := segmentFile.Truncate(0); err != nil {
+				return err
+			}
+			_, err := segmentFile.Seek(0, io.SeekStart)
+			return err
+		}
+		publish = func() error {
+			if _, err := segmentFile.Seek(0, io.SeekStart); err != nil {
+				return err
+			}
+			_, err := io.Copy(output, segmentFile)
+			return err
+		}
+	}
+
+	for attempt := 1; attempt <= maxSegmentAttempts; attempt++ {
+		if err := reset(); err != nil {
+			return fmt.Errorf("resetting segment staging file failed: %w", err)
+		}
+		retryable, err := c.downloadSegmentOnce(resourceURL, staged, expectedSize)
+		if err == nil {
+			if err := publish(); err != nil {
+				return fmt.Errorf("writing completed segment failed: %w", err)
+			}
+			return nil
+		}
+		if !retryable || attempt == maxSegmentAttempts {
+			if attempt > 1 {
+				return fmt.Errorf("segment failed after %d attempts: %w", attempt, err)
+			}
+			return err
+		}
+		time.Sleep(time.Duration(attempt) * 100 * time.Millisecond)
+	}
+	return errors.New("segment retry limit reached")
+}
+
+type writeErrorRecorder struct {
+	output io.Writer
+	err    error
+}
+
+func (w *writeErrorRecorder) Write(data []byte) (int, error) {
+	n, err := w.output.Write(data)
+	if err != nil {
+		w.err = err
+	} else if n < len(data) {
+		w.err = io.ErrShortWrite
+	}
+	return n, err
+}
+
+// downloadSegmentOnce reports whether a failed attempt can be retried safely.
+func (c *Client) downloadSegmentOnce(resourceURL *url.URL, output io.Writer, expectedSize int64) (bool, error) {
 	res, err := c.get(resourceURL)
 	if err != nil {
-		return fmt.Errorf("segment request failed: %w", err)
+		var requestErr *RequestError
+		return errors.As(err, &requestErr) && !errors.Is(err, context.Canceled), fmt.Errorf("segment request failed: %w", err)
 	}
 	defer res.Body.Close()
 	if isHTML(res.Header.Get("Content-Type")) {
-		return errors.New("segment response is HTML, not media")
+		return false, errors.New("segment response is HTML, not media")
 	}
 	reader := bufio.NewReader(res.Body)
 	firstBytes, _ := reader.Peek(64)
 	if looksLikeHTML(firstBytes) {
-		return errors.New("segment response is HTML, not media")
+		return false, errors.New("segment response is HTML, not media")
 	}
 	var body io.Reader = reader
 	if expectedSize > 0 {
 		body = io.LimitReader(reader, expectedSize+1)
 	}
 
-	written, err := io.Copy(output, body)
+	recorder := &writeErrorRecorder{output: output}
+	written, err := io.Copy(recorder, body)
 	if err != nil {
-		return fmt.Errorf("segment download failed: %w", err)
+		return recorder.err == nil, fmt.Errorf("segment download failed: %w", err)
 	}
 	if expectedSize > 0 && written != expectedSize {
-		return fmt.Errorf("segment size mismatch: expected %d bytes, received %d", expectedSize, written)
+		return written < expectedSize, fmt.Errorf("segment size mismatch: expected %d bytes, received %d", expectedSize, written)
 	}
 
-	return nil
+	return false, nil
 }
 
 func isHTML(contentType string) bool {

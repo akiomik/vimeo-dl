@@ -89,6 +89,67 @@ func TestRunDownloadRecoversAfterAudioFailure(t *testing.T) {
 	}
 }
 
+func TestRunDownloadRetriesOnlyInterruptedAudioSegment(t *testing.T) {
+	manifest := fixture(t, "master-ranged.json")
+	var videoRequests atomic.Int32
+	var firstAudioRequests atomic.Int32
+	var secondAudioRequests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/manifest/master.json":
+			w.Write(manifest)
+		case "/parcel/video/segment-1.m4s":
+			videoRequests.Add(1)
+			w.Write([]byte("V001"))
+		case "/parcel/video/segment-2.m4s":
+			videoRequests.Add(1)
+			w.Write([]byte("V002"))
+		case "/parcel/audio/sample.mp4":
+			w.Header().Set("Content-Length", "4")
+			switch r.URL.Query().Get("range") {
+			case "0-3":
+				if firstAudioRequests.Add(1) == 1 {
+					w.Write([]byte("A0"))
+					return
+				}
+				w.Write([]byte("A001"))
+			case "4-7":
+				secondAudioRequests.Add(1)
+				w.Write([]byte("A002"))
+			}
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+	directory := t.TempDir()
+	base := filepath.Join(directory, "result")
+	if err := runDownload(downloadOptions{Input: server.URL + "/manifest/master.json", OutputFilename: base}); err != nil {
+		t.Fatal(err)
+	}
+	video, err := os.ReadFile(base + "-video.mp4")
+	if err != nil {
+		t.Fatal(err)
+	}
+	audio, err := os.ReadFile(base + "-audio.mp4")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := append([]byte{0, 1, 2, 3}, []byte("V001V002")...); !bytes.Equal(video, want) {
+		t.Fatalf("video bytes = %v, want %v", video, want)
+	}
+	if want := append([]byte{4, 5, 6, 7}, []byte("A001A002")...); !bytes.Equal(audio, want) {
+		t.Fatalf("audio bytes = %v, want %v", audio, want)
+	}
+	if videoRequests.Load() != 2 || firstAudioRequests.Load() != 2 || secondAudioRequests.Load() != 1 {
+		t.Fatalf("requests: video=%d, first audio=%d, second audio=%d", videoRequests.Load(), firstAudioRequests.Load(), secondAudioRequests.Load())
+	}
+	entries, err := os.ReadDir(directory)
+	if err != nil || len(entries) != 2 {
+		t.Fatalf("unexpected staged files: entries=%v, error=%v", entries, err)
+	}
+}
+
 func TestRunDownloadRejectsRepeatedParcelBeforeMediaRequests(t *testing.T) {
 	manifest := fixture(t, "repeated-parcel.json")
 	var mediaRequests atomic.Int32
