@@ -27,6 +27,7 @@ var (
 	userAgent      string
 	videoId        string
 	audioId        string
+	ffmpegPath     string
 	outputFilename string
 	combine        bool
 )
@@ -38,7 +39,7 @@ var rootCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		if err := runDownload(downloadOptions{
 			Input: input, UserAgent: userAgent, VideoID: videoId,
-			AudioID: audioId, OutputFilename: outputFilename, Combine: combine,
+			AudioID: audioId, FFmpegPath: ffmpegPath, OutputFilename: outputFilename, Combine: combine,
 		}); err != nil {
 			fmt.Println("Error:", err.Error())
 			os.Exit(1)
@@ -52,6 +53,7 @@ func init() {
 	rootCmd.Flags().StringVarP(&userAgent, "user-agent", "", "", "user-agent for request")
 	rootCmd.Flags().StringVarP(&videoId, "video-id", "", "", "video id")
 	rootCmd.Flags().StringVarP(&audioId, "audio-id", "", "", "audio id")
+	rootCmd.Flags().StringVarP(&ffmpegPath, "ffmpeg-path", "", "", "path to the ffmpeg executable for --combine")
 	rootCmd.Flags().StringVarP(&outputFilename, "output-file-name", "o", "", "output file name")
 	rootCmd.Flags().BoolVarP(&combine, "combine", "", false, "combine video and audio into a single mp4 (ffmpeg is required)")
 	rootCmd.MarkFlagRequired("input")

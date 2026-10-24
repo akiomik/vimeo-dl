@@ -69,6 +69,7 @@ Usage:
 Flags:
       --audio-id string           audio id
       --combine                   combine video and audio into a single mp4 (ffmpeg is required)
+      --ffmpeg-path string        path to the ffmpeg executable for --combine
   -h, --help                      help for vimeo-dl
   -i, --input string              url for master.json or playlist.json (required)
   -o, --output-file-name string   output file name
@@ -76,6 +77,16 @@ Flags:
   -v, --version                   version for vimeo-dl
       --video-id string           video id
 ```
+
+Go does not run `ffmpeg` when it is found implicitly in the current directory.
+If `ffmpeg.exe` is beside `vimeo-dl.exe` on Windows, select it explicitly:
+
+```powershell
+.\vimeo-dl.exe --combine --ffmpeg-path ".\ffmpeg.exe" -i "$env:MASTER_JSON_URL"
+```
+
+Alternatively, install FFmpeg in an absolute `PATH` directory and run the
+downloader from a directory without another `ffmpeg.exe`.
 
 ## Install
 
@@ -116,12 +127,15 @@ Build docker image:
 # build docker image (with ffmpeg)
 docker build -t vimeo-dl .
 
-# build docker image without ffpeg
+# build docker image without ffmpeg
 docker build -t vimeo-dl:no-ffmpeg --target=no-ffmpeg .
 ```
 
-Use docker image (instead of the binary):
-```
-docker run -v "$(pwd)/downloads:/downloads" vimeo-dl ...
+Use the image and choose an output name inside the mounted downloads directory:
+
+```sh
+mkdir -p downloads
+docker run --rm -v "$(pwd)/downloads:/downloads" vimeo-dl \
+  --combine -i "${MASTER_JSON_URL}" --output-file-name "my-video"
 ```
 
