@@ -49,7 +49,8 @@ jobs:
         with:
           go-version-file: .go-version
           check-latest: true
-          # The release build restores nothing a CI run saved.
+          # No cache: one saved by a CI run on main could carry a poisoned
+          # build into the published release.
           cache: false
       - name: Prepare release notes
         env:
