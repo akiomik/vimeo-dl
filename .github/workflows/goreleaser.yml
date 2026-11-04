@@ -21,18 +21,16 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest]
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v7.0.0
         with:
           go-version-file: .go-version
           check-latest: true
       - run: go build ./...
       - run: go test ./...
       - if: matrix.os == 'ubuntu-latest'
-        uses: dominikh/staticcheck-action@v1.4.1
-        with:
-          version: "2026.2.2"
-          install-go: false
+        name: Run staticcheck
+        run: go run honnef.co/go/tools/cmd/staticcheck@v0.8.2 ./... # Staticcheck 2026.2.2
       - if: matrix.os == 'ubuntu-latest'
         name: Check known vulnerabilities
         run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
@@ -44,10 +42,10 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@v7.0.0
         with:
           go-version-file: .go-version
           check-latest: true
@@ -55,7 +53,7 @@ jobs:
         env:
           RELEASE_TAG: ${{ github.ref_name }}
         run: bash scripts/prepare-release-notes.sh "$RELEASE_TAG" "$RUNNER_TEMP/vimeo-dl-release-notes.md"
-      - uses: goreleaser/goreleaser-action@v7
+      - uses: goreleaser/goreleaser-action@v7.3.0
         with:
           distribution: goreleaser
           version: v2.18.3
