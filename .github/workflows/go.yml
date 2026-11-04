@@ -17,8 +17,8 @@ jobs:
     name: Linux
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v7
-    - uses: actions/setup-go@v7
+    - uses: actions/checkout@v7.0.1
+    - uses: actions/setup-go@v7.0.0
       with:
         go-version-file: .go-version
         check-latest: true
@@ -33,8 +33,8 @@ jobs:
     name: Windows
     runs-on: windows-latest
     steps:
-    - uses: actions/checkout@v7
-    - uses: actions/setup-go@v7
+    - uses: actions/checkout@v7.0.1
+    - uses: actions/setup-go@v7.0.0
       with:
         go-version-file: .go-version
         check-latest: true
