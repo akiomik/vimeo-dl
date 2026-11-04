@@ -49,6 +49,8 @@ jobs:
         with:
           go-version-file: .go-version
           check-latest: true
+          # The release build restores nothing a CI run saved.
+          cache: false
       - name: Prepare release notes
         env:
           RELEASE_TAG: ${{ github.ref_name }}
