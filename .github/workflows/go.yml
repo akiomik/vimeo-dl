@@ -24,10 +24,8 @@ jobs:
         check-latest: true
     - run: make build
     - run: make test
-    - uses: dominikh/staticcheck-action@v1.4.1
-      with:
-        version: "2026.2.2"
-        install-go: false
+    - name: Run staticcheck
+      run: go run honnef.co/go/tools/cmd/staticcheck@v0.8.2 ./... # Staticcheck 2026.2.2
     - name: Check known vulnerabilities
       run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
 
